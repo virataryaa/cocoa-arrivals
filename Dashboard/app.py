@@ -113,4 +113,10 @@ with st.container(key="main"):
     main = st.radio("Section", ["IVC"], horizontal=True, label_visibility="collapsed", key="main_tab")
 st.markdown("<div class='page-title'>Cocoa arrivals</div>", unsafe_allow_html=True)
 if main == "IVC":
-    render_weekly("IVC")
+    with st.container(key="nav"):
+        page = st.radio("Page", ["Weekly", "Projection"], horizontal=True, label_visibility="collapsed", key="page")
+    if page == "Weekly":
+        render_weekly("IVC")
+    else:
+        import projection
+        projection.render()

@@ -31,4 +31,17 @@ for sheet, origin in [("IVC Monthly", "IVC"), ("Ghana Monthly", "Ghana")]:
     rows.append(long.rename(columns={"Month": "month", "Type": "type"}))
 pd.concat(rows).to_csv(DB / "monthly.csv", index=False)
 
+# IVC Projection: Abidjan (cols B-G) and San Pedro (cols I-N), Monday-Saturday tonnes per week. Only the raw days are
+# kept - the Total / Combined columns in the sheet are projections pasted as values, the dashboard recomputes them.
+pr = pd.read_excel(tmp, sheet_name="IVC Projection", header=None, skiprows=2)
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+parts = []
+for port, c0 in [("Abidjan", 1), ("San Pedro", 8)]:
+    p_ = pr.iloc[:, [0] + list(range(c0, c0 + 6))].copy()
+    p_.columns = ["week"] + DAYS
+    p_["week"] = pd.to_datetime(p_["week"], errors="coerce")
+    p_.insert(0, "port", port)
+    parts.append(p_.dropna(subset=["week"]))
+pd.concat(parts).to_csv(DB / "ivc_projection.csv", index=False, date_format="%Y-%m-%d")
+
 print(f"weekly.csv: {len(w)} rows | monthly.csv: {sum(len(r) for r in rows)} rows")

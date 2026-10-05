@@ -9,7 +9,7 @@ st.set_page_config(page_title="Cocoa Arrivals", layout="wide", initial_sidebar_s
 NAVY = "#0a2463"
 DB = Path(__file__).resolve().parent.parent / "Database"
 CROP_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
-WEEKS_IN_MONTH = [5, 5] + [4] * 10                      # weeks 1-50; Cecafe-style desk convention, week 51 is left open
+WEEKS_IN_MONTH = [4] * 12                               # every month = 4 weeks -> weeks 1-48; weeks 49-51 have no Forestero value
 # (label, column, colour, dash, width) - same look as the desk Excel
 SERIES = [
     ("ETG (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5),
@@ -57,7 +57,7 @@ def load():
 
 
 def forestero_weekly(monthly: pd.DataFrame, origin: str, typ: str, crop_year: str) -> pd.Series:
-    """Monthly Forestero figure spread evenly over the weeks of that month -> weekly step series (index = week 1-50)."""
+    """Monthly Forestero figure spread evenly over the weeks of that month -> weekly step series (index = week 1-48)."""
     m = monthly[(monthly.origin == origin) & (monthly.type == typ) & (monthly.crop_year == crop_year)]
     kt = m.set_index("month").kt
     out, wk = {}, 1
@@ -101,7 +101,7 @@ def render_weekly(origin: str = "IVC"):
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Weekly arrivals 25/26 {origin}</div>"
                     "<div class='card-desc'>Forestero lines are the monthly figure divided over that month's weeks "
-                    "(Oct and Nov 5 weeks, the rest 4). Adj Eikon is the Eikon feed after the desk adjustment.</div>",
+                    "(every month is treated as 4 weeks, so the line covers weeks 1-48). Adj Eikon is the Eikon feed after the desk adjustment.</div>",
                     unsafe_allow_html=True)
         st.plotly_chart(chart(df, False, 430), width="stretch")
     with st.container(border=True):

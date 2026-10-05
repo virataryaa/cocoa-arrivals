@@ -3,13 +3,18 @@
 Projection = known days / historical share of those days in the full week, where the share is the ratio of sums over
 every earlier week that has all six days. Works for any set of known days (Mon-Thu, a blank Monday, ...).
 """
+import io
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
+import ghstore as gh
+
 DB = Path(__file__).resolve().parent.parent / "Database"
+CSV = DB / "ivc_projection.csv"
+REPO_PATH = "Database/ivc_projection.csv"
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 PORTS = ["Abidjan", "San Pedro"]
 BAR = {"Abidjan": "rgba(31,138,156,0.28)", "San Pedro": "rgba(10,36,99,0.22)", "Combined": "rgba(201,138,31,0.32)"}
@@ -135,8 +140,156 @@ def table_html(data: dict, weeks: pd.DatetimeIndex) -> str:
     return f"<div class='pj-wrap'><table class='pj'>{h1}{h2}{''.join(rows)}</table></div>"
 
 
+# ---------------------------------------------------------------------------------------------
+# entry: type Mon-Thu, press Project to see the full week, Save to store it (GitHub, like Cecafe Daily)
+# ---------------------------------------------------------------------------------------------
+def entry_enabled() -> bool:
+    try:
+        return "github_token" in st.secrets
+    except Exception:                                   # no secrets file at all (local run)
+        return False
+
+
+def _frame(text: str) -> pd.DataFrame:
+    return pd.read_csv(io.StringIO(text))
+
+
+def _to_csv(frame: pd.DataFrame) -> str:
+    frame = frame.sort_values(["port", "week"]).copy()
+    frame["week"] = pd.to_datetime(frame["week"]).dt.strftime("%Y-%m-%d")
+    for d in DAYS:                                      # whole tonnes stay whole numbers in the file
+        if (frame[d].dropna() % 1 == 0).all():
+            frame[d] = frame[d].astype("Int64")
+    return frame.to_csv(index=False, lineterminator="\n")
+
+
+def apply_week(frame: pd.DataFrame, week: pd.Timestamp, vals: dict) -> pd.DataFrame:
+    """Replace the given week of each port by vals[port] = {day: number or None}; a port with nothing entered loses the row."""
+    frame = frame.copy()
+    frame["week"] = pd.to_datetime(frame["week"])
+    frame = frame[~((frame.week == week) & frame.port.isin(vals))]
+    new = [{"port": p, "week": week, **v} for p, v in vals.items() if any(x is not None for x in v.values())]
+    if new:
+        frame = pd.concat([frame, pd.DataFrame(new)], ignore_index=True)
+    return frame.reindex(columns=["port", "week", *DAYS])
+
+
+def current_week_values(raw: pd.DataFrame, week: pd.Timestamp) -> pd.DataFrame:
+    g = raw[raw.week == week].set_index("port")
+    return pd.DataFrame({d: [g[d].get(p, np.nan) if p in g.index else np.nan for p in PORTS] for d in DAYS}, index=PORTS)
+
+
+def grid_vals(grid: pd.DataFrame) -> dict:
+    return {p: {d: (None if pd.isna(grid.loc[p, d]) else float(grid.loc[p, d])) for d in DAYS} for p in PORTS}
+
+
+def preview(raw: pd.DataFrame, week: pd.Timestamp, vals: dict) -> dict:
+    """Projection of the entered week, using only the weeks before it."""
+    out = {}
+    for p in PORTS:
+        sub = apply_week(raw[raw.port == p], week, {p: vals[p]})
+        r = project_port(sub.drop(columns="port")).set_index("week")
+        out[p] = r.loc[week] if week in r.index else None
+    return out
+
+
+def entry_notes(raw: pd.DataFrame, vals: dict) -> list[str]:
+    """Things to double check: a day far above anything seen at that port (extra zero?)."""
+    notes = []
+    for p in PORTS:
+        cap = np.nanmax(raw[raw.port == p][DAYS].to_numpy())
+        for d, v in vals[p].items():
+            if v is not None and v > 1.5 * cap:
+                notes.append(f"{p} {d} {v:,.0f} is above 1.5x the highest day ever recorded ({cap:,.0f}). Extra zero?")
+    return notes
+
+
+def save_week(week: pd.Timestamp, vals: dict):
+    msg = f"Week {week:%Y-%m-%d}: " + "; ".join(
+        f"{p} " + ",".join(f"{d} {v:,.0f}" for d, v in vals[p].items() if v is not None) for p in PORTS)
+
+    def change(text):
+        return _to_csv(apply_week(_frame(text), week, vals)), None
+
+    if entry_enabled():
+        new_text, _ = gh.commit(REPO_PATH, change, msg)
+    else:                                                # local run: write the file directly
+        new_text, _ = change(CSV.read_text(encoding="utf-8"))
+    CSV.write_text(new_text, encoding="utf-8", newline="")   # show it now, before Cloud redeploys
+    load.clear()
+    build.clear()
+
+
+def preview_html(res: dict, vals: dict) -> str:
+    rows = []
+    for p in PORTS:
+        r = res[p]
+        if r is None or pd.isna(r["total"]):
+            rows.append(f"<tr><td class='wk'>{p}</td><td colspan=7 class='na'>nothing entered</td></tr>")
+            continue
+        tds = [f"<td class='wk'>{p}</td>"]
+        for d in DAYS:
+            tds.append(f"<td class='{'est' if vals[p][d] is None else ''}'>{_fmt(r[f'est_{d}'])}</td>")
+        tds.append(f"<td class='tot est'>{_fmt(r['total'])}<span class='tag'>P</span></td>")
+        rows.append("<tr>" + "".join(tds) + "</tr>")
+    tot = sum(r["total"] for r in res.values() if r is not None and not pd.isna(r["total"]))
+    head = "<tr><th>Port</th>" + "".join(f"<th>{d}</th>" for d in DAYS) + "<th>Week total</th></tr>"
+    rows.append(f"<tr><td class='wk'>Combined</td><td colspan=6></td><td class='tot'>{_fmt(tot)}</td></tr>")
+    return f"<div class='pj-wrap' style='max-height:none'><table class='pj'>{head}{''.join(rows)}</table></div>"
+
+
+def render_entry(data: dict):
+    raw = load()
+    allw = sorted(raw.week.unique())
+    latest = pd.Timestamp(allw[-1])
+    full_last = all(not data[p][data[p].week == latest][[f"is_{d}" for d in DAYS]].to_numpy().any() for p in PORTS)
+    choices = [latest + pd.Timedelta(days=7)] + [pd.Timestamp(w) for w in allw[-8:][::-1]]
+    with st.container(border=True):
+        st.markdown("<div class='card-title'>Enter a week</div><div class='card-desc'>Type the days reported so far "
+                    "(Mon-Thu is enough), leave the rest blank, press <b>Project</b> to see the full week, "
+                    "<b>Save</b> to store it. A 0 means no arrivals; blank means not reported yet.</div>", unsafe_allow_html=True)
+        top = st.columns([1.5, 5], vertical_alignment="center")
+        with top[0]:
+            week = st.selectbox("Week", choices, index=0 if full_last else 1, label_visibility="collapsed", key="pj_week",
+                                format_func=lambda w: f"Week of  |  {w:%d-%b-%Y}")
+        grid = st.data_editor(
+            current_week_values(raw, week), key=f"pj_ed_{week:%Y%m%d}", width="stretch",
+            column_config={d: st.column_config.NumberColumn(d, min_value=0, step=1, format="%d") for d in DAYS})
+        vals = grid_vals(grid)
+        notes = entry_notes(raw, vals)
+        override = st.checkbox("Override warnings", key="pj_override") if notes else True
+        for n in notes:
+            st.warning(n)
+        b = st.columns([1, 1, 6])
+        do_project = b[0].button("Project", type="primary", width="stretch")
+        do_save = b[1].button("Save", width="stretch", disabled=not override)
+        if do_project:
+            st.session_state["pj_show"] = week
+        if st.session_state.get("pj_show") == week and any(x is not None for p in PORTS for x in vals[p].values()):
+            st.markdown(CSS + preview_html(preview(raw, week, vals), vals), unsafe_allow_html=True)
+            st.markdown("<div class='pj-note'>Italic = projected from the share those days normally make of the week "
+                        "(complete weeks before this one). Not saved until you press Save.</div>", unsafe_allow_html=True)
+        if do_save:
+            try:
+                save_week(week, vals)
+            except gh.GitHubError as ex:
+                st.error(str(ex))
+            else:
+                st.session_state["pj_show"] = None
+                st.rerun()
+        if entry_enabled():
+            with st.expander("Save history", expanded=False):
+                try:
+                    for ts, m in gh.history(REPO_PATH, 15):
+                        st.markdown(f"<div class='pj-note'>{ts[:16].replace('T', ' ')} UTC - {m.splitlines()[0]}</div>",
+                                    unsafe_allow_html=True)
+                except gh.GitHubError as ex:
+                    st.caption(str(ex))
+
+
 def render():
     data = build()
+    render_entry(data)
     allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week))
     cys = sorted({crop_year(w) for w in allw}, reverse=True)
     c1, _ = st.columns([1.2, 5], vertical_alignment="center")

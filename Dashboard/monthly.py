@@ -1,10 +1,15 @@
 """Forestero monthly arrivals (Stat / Tree) for IVC, Ghana and the two combined. Crop year Oct-Sep, thousand tonnes."""
+import io
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+import ghstore as gh
+import projection
+import season
 
 DB = Path(__file__).resolve().parent.parent / "Database"
 CROP_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
@@ -76,29 +81,155 @@ def _cell(v, lo, hi):
 
 
 def table_html(t: pd.DataFrame) -> str:
-    lo, hi = t.min(), t.max()                                # colour each month column against its own range
-    head = "<tr><th>Crop year</th>" + "".join(f"<th>{m}</th>" for m in CROP_MONTHS) + "<th>Total</th><th>YTD YoY</th></tr>"
+    """t: rows = crop year, columns = month. Rendered with months down and crop years across."""
+    years = list(t.index)
+    running = {cy: not t.loc[cy].notna().all() for cy in years}
+    head = "<tr><th>Month</th>" + "".join(f"<th>{cy}{'*' if running[cy] else ''}</th>" for cy in years) + "</tr>"
     rows = []
-    for cy in reversed(list(t.index)):
-        s = t.loc[cy]
-        tot = s.sum(min_count=1)
-        done = s.notna()
-        yoy = ""
-        i = list(t.index).index(cy)
+    for m in CROP_MONTHS:
+        col = t[m]
+        rows.append(f"<tr><td class='cy'>{m}</td>" + "".join(_cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
+    tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
+                  for cy in years)
+    rows.append(f"<tr><td class='cy'>Total</td>{tot}</tr>")
+    yoy = []
+    for i, cy in enumerate(years):
+        done = t.loc[cy].notna()
+        g = np.nan
         if i > 0 and done.any():
             prev = t.iloc[i - 1][done]
             if prev.notna().all() and prev.sum() > 0:
-                g = s[done].sum() / prev.sum() - 1
-                yoy = f"<td class='{'up' if g >= 0 else 'dn'}'>{g:+.0%}</td>"
-        yoy = yoy or "<td class='na'>-</td>"
-        cells = "".join(_cell(s[m], lo[m], hi[m]) for m in CROP_MONTHS)
-        part = "" if done.all() else "*"
-        rows.append(f"<tr><td class='cy'>{cy}{part}</td>{cells}<td class='tot'>{tot:,.0f}</td>{yoy}</tr>")
-    return f"<div class='mt-wrap'><table class='mt'>{head}{''.join(rows)}</table></div>"
+                g = t.loc[cy][done].sum() / prev.sum() - 1
+        yoy.append("<td class='na'>-</td>" if np.isnan(g) else f"<td class='{'up' if g >= 0 else 'dn'}'>{g:+.0%}</td>")
+    rows.append(f"<tr><td class='cy'>YTD YoY</td>{''.join(yoy)}</tr>")
+    return f"<div class='mt-wrap' style='display:inline-block;max-width:100%'><table class='mt' style='width:auto'>{head}{''.join(rows)}</table></div>"
+
+
+# ---------------------------------------------------------------------------------------------
+# edit: Forestero figures typed straight into a Month x Crop-year grid, saved to Database/monthly.csv (GitHub, like the weeks)
+# ---------------------------------------------------------------------------------------------
+MON_CSV = DB / "monthly.csv"
+MON_PATH = "Database/monthly.csv"
+ORIGIN_ORDER, TYPE_ORDER = {"IVC": 0, "Ghana": 1}, {"Stat": 0, "Tree": 1}
+
+
+def current_crop_year(today: pd.Timestamp | None = None) -> str:
+    t = today or pd.Timestamp.today()
+    y = t.year if t.month >= 10 else t.year - 1
+    return f"{y % 100:02d}/{(y + 1) % 100:02d}"
+
+
+def edit_grid(origin: str, typ: str) -> pd.DataFrame:
+    """Rows Oct..Sep, columns = every crop year on file for this origin (+ the current one), thousand tonnes."""
+    m = load()
+    years = sorted(set(m[m.origin == origin].crop_year) | {current_crop_year()})
+    g = m[(m.origin == origin) & (m.type == typ)].pivot_table(index="month", columns="crop_year", values="kt")
+    return g.reindex(index=CROP_MONTHS, columns=years).astype(float)
+
+
+def _as_text(grid: pd.DataFrame) -> pd.DataFrame:
+    return grid.apply(lambda col: col.map(lambda v: "" if pd.isna(v) else f"{v:.0f}" if float(v).is_integer() else f"{v}"))
+
+
+def _parse(grid: pd.DataFrame, orig: pd.DataFrame, bad: list) -> pd.DataFrame:
+    out = orig.copy()
+    for mon in grid.index:
+        for cy in grid.columns:
+            txt = grid.loc[mon, cy]
+            txt = "" if txt is None or (isinstance(txt, float) and np.isnan(txt)) else str(txt).replace(",", "").strip()
+            try:
+                v = float(txt) if txt else np.nan
+                if v < 0:
+                    raise ValueError
+            except ValueError:
+                bad.append(f"{mon} {cy}: '{txt}' is not a valid number - kept the stored value.")
+                v = orig.loc[mon, cy]
+            out.loc[mon, cy] = v
+    return out
+
+
+def _changes(orig: pd.DataFrame, new: pd.DataFrame) -> dict:
+    """{(month, crop_year): value or None} where the cell differs."""
+    out = {}
+    for mon in orig.index:
+        for cy in orig.columns:
+            a, b = orig.loc[mon, cy], new.loc[mon, cy]
+            if not (pd.isna(a) and pd.isna(b)) and not (a == b):
+                out[(mon, cy)] = None if pd.isna(b) else float(b)
+    return out
+
+
+def _mon_csv(frame: pd.DataFrame) -> str:
+    frame = frame.copy()
+    frame["_o"] = frame.origin.map(ORIGIN_ORDER)
+    frame["_t"] = frame.type.map(TYPE_ORDER)
+    frame["_m"] = frame.month.map({m: i for i, m in enumerate(CROP_MONTHS)})
+    frame = frame.sort_values(["_o", "crop_year", "_t", "_m"]).drop(columns=["_o", "_t", "_m"])
+    if (frame.kt % 1 == 0).all():
+        frame["kt"] = frame.kt.astype("Int64")
+    return frame[["origin", "month", "type", "crop_year", "kt"]].to_csv(index=False, lineterminator="\n")
+
+
+def save_monthly(origin: str, typ: str, changes: dict):
+    msg = f"Forestero {origin} {typ}: " + "; ".join(f"{m} {cy} {'cleared' if v is None else f'{v:,.0f}'}" for (m, cy), v in changes.items())
+
+    def change(text):
+        frame = pd.read_csv(io.StringIO(text), dtype={"crop_year": str})
+        for (mon, cy), v in changes.items():
+            hit = (frame.origin == origin) & (frame.type == typ) & (frame.month == mon) & (frame.crop_year == cy)
+            frame = frame[~hit]
+            if v is not None:
+                frame = pd.concat([frame, pd.DataFrame([{"origin": origin, "month": mon, "type": typ, "crop_year": cy, "kt": v}])],
+                                  ignore_index=True)
+        return _mon_csv(frame), None
+
+    if projection.entry_enabled():
+        new_text, _ = gh.commit(MON_PATH, change, msg)
+    else:                                                # local run: write the file directly
+        new_text, _ = change(MON_CSV.read_text(encoding="utf-8"))
+    MON_CSV.write_text(new_text, encoding="utf-8", newline="")   # show it now, before Cloud redeploys
+    load.clear()
+    season.load.clear()
+
+
+def render_edit(origin: str, typ: str):
+    orig = edit_grid(origin, typ)
+    ver = st.session_state.get(f"mo_ver_{origin}", 0)
+    with st.container(border=True):
+        st.markdown(f"<div class='card-title'>Edit Forestero {origin} ({typ})</div><div class='card-desc'>Thousand tonnes. Type over any "
+                    "cell, blank = no figure. Switch Stat / Tree above to edit the other series. <b>Save</b> stores the changes; the table below updates after Save.</div>",
+                    unsafe_allow_html=True)
+        cfg = {"_index": st.column_config.Column("Month", width=74)}
+        cfg.update({cy: st.column_config.TextColumn(cy, width=64) for cy in orig.columns})
+        typed = st.data_editor(_as_text(orig), key=f"mo_ed_{origin}_{typ}_{ver}", width="content", row_height=26,
+                               height=26 * (len(orig) + 1) + 16, column_config=cfg)
+        bad = []
+        new = _parse(typed, orig, bad)
+        changes = _changes(orig, new)
+        for n in bad:
+            st.error(n)
+        cap = np.nanmax(orig.to_numpy()) if np.isfinite(orig.to_numpy()).any() else np.inf
+        notes = [f"{m} {cy}: {v:,.0f} is above 1.5x the highest month on file ({cap:,.0f}). Extra zero?"
+                 for (m, cy), v in changes.items() if v is not None and v > 1.5 * cap]
+        override = st.checkbox("Override warnings", key=f"mo_override_{origin}") if notes else True
+        for n in notes:
+            st.warning(n)
+        c = st.columns([1, 6])
+        if c[0].button("Save", type="primary", width="stretch", disabled=not (changes and override), key=f"mo_save_{origin}"):
+            try:
+                save_monthly(origin, typ, changes)
+            except gh.GitHubError as ex:
+                st.error(str(ex))
+            else:
+                st.session_state[f"mo_ver_{origin}"] = ver + 1
+                st.rerun()
+        if changes:
+            c[1].markdown(f"<div class='card-desc' style='margin-top:8px'>{len(changes)} cell(s) changed, not saved yet.</div>",
+                          unsafe_allow_html=True)
 
 
 def render(origin: str):
-    top = st.columns([1.2, 1.4, 1.2, 4], vertical_alignment="center")
+    top = st.columns([1.2, 1.8, 1.2, 3.6], vertical_alignment="center")
     with top[0]:
         typ = st.radio("Series", ["Stat", "Tree"], horizontal=True, label_visibility="collapsed", key=f"mo_typ_{origin}",
                        help="Forestero monthly series. Stat = statistical, Tree = tree-count based.")
@@ -117,6 +248,8 @@ def render(origin: str):
             st.markdown(f"<div class='card-title'>Cumulative arrivals {origin} ({typ})</div>", unsafe_allow_html=True)
             st.plotly_chart(line_chart(t, True, last_n), width="stretch")
     else:
+        if origin != COMBINED:
+            render_edit(origin, typ)
         with st.container(border=True):
             st.markdown(f"<div class='card-title'>Monthly arrivals {origin} ({typ}) - all crop years</div>"
                         "<div class='card-desc'>Thousand tonnes. Shading compares each month with the same month in other years. "

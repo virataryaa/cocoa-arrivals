@@ -37,7 +37,7 @@ import projection
 import season
 
 ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
-PAGES = {"IVC": ["This week", "Weekly Arrivals", "Monthly", "Accuracy"], "Ghana": ["Monthly"], monthly.COMBINED: ["Monthly"]}
+PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly", "Accuracy"], "Ghana": ["Forestero : Monthly"], monthly.COMBINED: ["Forestero : Monthly"]}
 
 with st.container(key="main"):
     origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")

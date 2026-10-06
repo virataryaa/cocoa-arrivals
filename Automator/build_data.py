@@ -1,4 +1,4 @@
-"""Database/Mannual.xlsx -> Database/weekly.csv + Database/monthly.csv (the files the dashboard reads).
+"""Database/Mannual.xlsx -> Database/weekly.csv (history of the Weekly sheet; the dashboard reads it).
 
 Mannual.xlsx is the hand-kept desk workbook (gitignored, often locked by Excel -> it is copied first).
 Sheets: Weekly (IVC weekly arrivals, crop year Oct-Sep), IVC Monthly / Ghana Monthly (Forestero Stat + Tree).
@@ -22,16 +22,9 @@ w = w.apply(pd.to_numeric, errors="coerce")             # '#N/A' -> NaN
 w = w.dropna(subset=["week"]).astype({"week": int})
 w.to_csv(DB / "weekly.csv", index=False)
 
-# Monthly: wide (one column per crop year) -> long
-rows = []
-for sheet, origin in [("IVC Monthly", "IVC"), ("Ghana Monthly", "Ghana")]:
-    m = pd.read_excel(tmp, sheet_name=sheet)
-    long = m.melt(id_vars=["Month", "Type"], var_name="crop_year", value_name="kt").dropna(subset=["kt"])
-    long.insert(0, "origin", origin)
-    rows.append(long.rename(columns={"Month": "month", "Type": "type"}))
-pd.concat(rows).to_csv(DB / "monthly.csv", index=False)
+# NOTE: Database/monthly.csv is NOT built here any more - the dashboard (Forestero : Monthly > Edit) owns it.
 
 # NOTE: Database/ivc_projection.csv is NOT built here any more. The dashboard (This week tab) owns it - entries are saved
 # straight into that file - so re-running this script must never overwrite it from the old "IVC Projection" sheet.
 
-print(f"weekly.csv: {len(w)} rows | monthly.csv: {sum(len(r) for r in rows)} rows")
+print(f"weekly.csv: {len(w)} rows")

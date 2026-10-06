@@ -40,6 +40,8 @@ div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownConta
 .st-key-nav_ivc div[role="radiogroup"] label:first-of-type:has(input:checked) { border-bottom-color: #e8913f !important; }
 .st-key-nav_ivc div[role="radiogroup"] label:first-of-type:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #b8621a !important; }
 .st-key-moview div[role="radiogroup"] label:nth-of-type(2) div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
+.st-key-nav_pod div[role="radiogroup"] label:nth-of-type(2) div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
+.st-key-nav_pod div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { border-bottom-color: #e8913f !important; }
 .st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { background: #f6c99e !important; }
 .st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #7a3b08 !important; }
 .card-desc { color: #5a6688; font-size: 0.82rem; margin-top: -6px; margin-bottom: 10px; }
@@ -57,20 +59,26 @@ import monthly
 import projection
 import season
 
-ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
-PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"], monthly.COMBINED: ["Forestero : Monthly"]}
+ORIGINS = ["IVC", "Ghana", monthly.COMBINED, "Pod Counts"]
+PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"], monthly.COMBINED: ["Forestero : Monthly"], "Pod Counts": ["Overview", "Entry Table"]}
 
-head_l, head_r = st.columns([5, 2], vertical_alignment="center")
+head_l, head_r = st.columns([4, 3], vertical_alignment="center")
 with head_r, st.container(key="main"):
     origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
 with head_l:
     st.markdown(f"<div class='app-title'>Cocoa Arrivals</div>", unsafe_allow_html=True)
-with st.container(key="nav_ivc" if origin == "IVC" else "nav"):
+with st.container(key={"IVC": "nav_ivc", "Pod Counts": "nav_pod"}.get(origin, "nav")):
     page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
 
 if page == "This week":
     projection.render_week()
 elif page == "Weekly Arrivals":
     season.render("IVC")
+elif origin == "Pod Counts":
+    import pod_view
+    if page == "Entry Table":
+        pod_view.render_entry()
+    else:
+        pod_view.render_overview()
 else:
     monthly.render(origin)

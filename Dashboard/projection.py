@@ -60,8 +60,9 @@ def load_eikon() -> pd.Series:
     return d.set_index("week")["eikon"].astype(float).sort_index()
 
 
-def project_port(d: pd.DataFrame) -> pd.DataFrame:
-    """Adds est_<day> (value or projected fill), total, projected flag, n_known. Point-in-time: only earlier weeks feed the share."""
+def project_port(d: pd.DataFrame, window: int | None = None) -> pd.DataFrame:
+    """Adds est_<day> (value or projected fill), total, projected flag, n_known. Point-in-time: only earlier weeks feed the share.
+    window = use only the last N complete weeks before the week being projected (None = all of them)."""
     d = d.reset_index(drop=True).copy()
     vals = d[DAYS].to_numpy(float)
     known = ~np.isnan(vals)
@@ -73,6 +74,8 @@ def project_port(d: pd.DataFrame) -> pd.DataFrame:
             out[i] = vals[i].sum()
             continue
         hist = vals[:i][full[:i]]
+        if window:
+            hist = hist[-window:]
         if len(hist) < 4 or not known[i].any():
             continue
         share = hist[:, known[i]].sum() / hist.sum()
@@ -91,10 +94,24 @@ def project_port(d: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
+def current_window() -> int | None:
+    """Projection history chosen on the This week tab: None = all complete weeks, N = the last N complete weeks."""
+    ss = st.session_state                                # widget keys vanish on other tabs - keep a plain copy
+    mode = ss.get("pj_mode", ss.get("_pj_mode", "All weeks"))
+    return None if mode == "All weeks" else int(ss.get("pj_n", ss.get("_pj_n", 12)))
+
+
 @st.cache_data(ttl=600)
-def build() -> dict:
+def _build(window: int | None) -> dict:
     raw = load()
-    return {p: project_port(raw[raw.port == p].drop(columns="port")) for p in PORTS}
+    return {p: project_port(raw[raw.port == p].drop(columns="port"), window) for p in PORTS}
+
+
+def build() -> dict:
+    return _build(current_window())
+
+
+build.clear = _build.clear
 
 
 def crop_year(ts: pd.Timestamp) -> str:
@@ -296,7 +313,7 @@ def preview_data(raw: pd.DataFrame, eik: pd.Series, changes: dict):
             e = e.drop(w, errors="ignore")
         else:
             e.loc[w] = c["eikon"]
-    data = {p: project_port(frame[frame.port == p].drop(columns="port").sort_values("week")) for p in PORTS}
+    data = {p: project_port(frame[frame.port == p].drop(columns="port").sort_values("week"), current_window()) for p in PORTS}
     return data, e.sort_index()
 
 
@@ -344,6 +361,17 @@ def render_entry(data: dict):
     ver = st.session_state.get("pj_ver", 0)
     with st.container(border=True):
         st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Blank = not reported, 0 = no arrivals.</div>", unsafe_allow_html=True)
+        pm = st.columns([1.9, 1.1, 5], vertical_alignment="center")
+        with pm[0]:
+            opts = ["All weeks", "Recent weeks"]
+            mode = st.radio("Projection history", opts, horizontal=True, key="pj_mode",
+                            index=opts.index(st.session_state.get("_pj_mode", "All weeks")),
+                            help="Which complete weeks set the day-of-week shares used to project unfinished weeks.")
+        st.session_state["_pj_mode"] = mode
+        if mode == "Recent weeks":
+            with pm[1]:
+                st.session_state["_pj_n"] = st.number_input("Last N weeks", min_value=4, max_value=150, step=1, key="pj_n",
+                                                            value=int(st.session_state.get("_pj_n", 12)))
         st.markdown(
             "<div style='display:flex;font-size:12px;font-weight:600;color:#fff;text-align:center;margin-bottom:1px'>"
             f"<div style='width:{W_WEEK}px'></div>"

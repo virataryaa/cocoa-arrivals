@@ -36,6 +36,9 @@ CSS = """
 .pj td.na { color: #b8bfd2; }
 .pj td.up { color: #1f9d6f; } .pj td.dn { color: #c94a4a; }
 .pj .tag { font-size: 9px; color: #8a5a12; font-weight: 700; margin-left: 3px; }
+.pj-wrap.fit { display: inline-block; max-width: 100%; }
+.pj.fit { width: auto; font-size: 11.5px; }
+.pj.fit td, .pj.fit th { padding: 2px 7px; }
 .pj-note { font-size: 11px; color: #7a86a8; margin-top: 6px; }
 </style>
 """
@@ -102,7 +105,7 @@ def _fmt(v):
     return "-" if v is None or np.isnan(v) else f"{v:,.0f}"
 
 
-def table_html(data: dict, weeks: pd.DatetimeIndex) -> str:
+def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False) -> str:
     ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
     all_w = ab.index.union(sp.index)
     comb_all = ab["total"].reindex(all_w) + sp["total"].reindex(all_w)
@@ -138,7 +141,8 @@ def table_html(data: dict, weeks: pd.DatetimeIndex) -> str:
         wow = c / pv - 1 if pd.notna(pv) and pv else np.nan
         tds.append("<td class='na'>-</td>" if np.isnan(wow) else f"<td class='{'up' if wow >= 0 else 'dn'}'>{wow:+.0%}</td>")
         rows.append("<tr>" + "".join(tds) + "</tr>")
-    return f"<div class='pj-wrap'><table class='pj'>{h1}{h2}{''.join(rows)}</table></div>"
+    cls = " fit" if fit else ""
+    return f"<div class='pj-wrap{cls}'><table class='pj{cls}'>{h1}{h2}{''.join(rows)}</table></div>"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -175,7 +179,7 @@ def apply_week(frame: pd.DataFrame, week: pd.Timestamp, vals: dict) -> pd.DataFr
     return frame.reindex(columns=["port", "week", *DAYS])
 
 
-N_WEEKS = 8                                             # rows in the entry grid: the coming week + the last 7
+N_WEEKS = 6                                             # rows in the entry grid: the coming week + the last 7
 
 
 def week_grids(raw: pd.DataFrame):
@@ -252,15 +256,16 @@ def render_entry(data: dict):
         st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Type over any cell: blank = not reported, "
                     "0 = no arrivals. Top row is the coming week. <b>Project</b> fills the full weeks, <b>Save</b> stores what you typed.</div>",
                     unsafe_allow_html=True)
-        cols = st.columns(2)
+        cols = st.columns([4.7, 4.7, 3.3])
         edited = {}
-        for c, p, colour in zip(cols, PORTS, ["#1f8a9c", "#0a2463"]):
+        for c, p, colour in zip(cols[:2], PORTS, ["#1f8a9c", "#0a2463"]):
             with c:
                 st.markdown(f"<div style='background:{colour};color:#fff;font-weight:600;font-size:12px;text-align:center;"
-                            f"padding:3px 0;border-radius:6px 6px 0 0'>{p}</div>", unsafe_allow_html=True)
+                            f"padding:2px 0;border-radius:6px 6px 0 0;width:{74 + 62 * 6 + 2}px'>{p}</div>", unsafe_allow_html=True)
                 edited[p] = st.data_editor(
-                    orig[p], key=f"pj_ed_{p}_{ver}", width="stretch", height=38 + 35 * len(weeks),
-                    column_config={d: st.column_config.NumberColumn(d, min_value=0, step=1, format="%d") for d in DAYS})
+                    orig[p], key=f"pj_ed_{p}_{ver}", width="content", row_height=26, height=26 * (len(weeks) + 1) + 16,
+                    column_config={"_index": st.column_config.Column("Week", width=74),
+                                   **{d: st.column_config.NumberColumn(d, min_value=0, step=1, format="%d", width=62) for d in DAYS}})
         changes = collect(weeks, orig, edited)
         notes = entry_notes(raw, changes)
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
@@ -361,6 +366,15 @@ def render_accuracy(data: dict):
                     unsafe_allow_html=True)
 
 
+def render_history(data: dict):
+    allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week), reverse=True)
+    with st.container(border=True):
+        st.markdown("<div class='card-title'>History</div><div class='card-desc'>Every week on file, newest first (tonnes). "
+                    "Hatched italic = not reported, projected; <b>P</b> = projected total.</div>", unsafe_allow_html=True)
+        st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True), unsafe_allow_html=True)
+
+
 def render_week():
     data = build()
     render_entry(data)
+    render_history(data)

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 import ghstore as gh
@@ -287,9 +288,137 @@ def render_entry(data: dict):
                     st.caption(str(ex))
 
 
-def render():
+PORT_COL = {"Abidjan": "#1f8a9c", "San Pedro": "#0a2463"}
+MONTHS_CROP = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
+
+
+def _layout(fig, height):
+    fig.update_layout(
+        template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#1a1a2e"),
+        hovermode="x unified", height=height, margin=dict(t=10, b=10, l=10, r=10),
+        xaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578"),
+        yaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578", tickformat=",", hoverformat=",.0f"),
+        legend=dict(orientation="h", x=0, y=-0.15, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)"))
+    return fig
+
+
+def weekly_totals(data: dict) -> pd.DataFrame:
+    ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
+    idx = ab.index.union(sp.index)
+    df = pd.DataFrame({"Abidjan": ab["total"].reindex(idx), "San Pedro": sp["total"].reindex(idx)})
+    df["proj"] = (ab["projected"].reindex(idx).fillna(False).astype(bool) | sp["projected"].reindex(idx).fillna(False).astype(bool))
+    df["Combined"] = df["Abidjan"] + df["San Pedro"]
+    return df
+
+
+def render_week_chart(data: dict):
+    """Last 16 weeks stacked by port (projected weeks hatched) + the same week a year earlier."""
+    df = weekly_totals(data).tail(16)
+    allw = weekly_totals(data)
+    ly = allw["Combined"].reindex(df.index - pd.Timedelta(days=364))
+    with st.container(border=True):
+        st.markdown("<div class='card-title'>Last 16 weeks, combined (tonnes)</div>"
+                    "<div class='card-desc'>Abidjan + San Pedro. Hatched bars are projected weeks. The marker is the same week a year earlier.</div>",
+                    unsafe_allow_html=True)
+        fig = go.Figure()
+        for port in PORTS:
+            fig.add_bar(x=df.index, y=df[port], name=port, marker_color=PORT_COL[port],
+                        marker_pattern_shape=["/" if p else "" for p in df["proj"]], marker_pattern_fgcolor="rgba(255,255,255,0.7)",
+                        hovertemplate="%{y:,.0f}")
+        fig.add_scatter(x=df.index, y=ly.to_numpy(), name="Same week last year", mode="markers",
+                        marker=dict(symbol="diamond", size=9, color="#c98a1f", line=dict(color="#fff", width=1)), hovertemplate="%{y:,.0f}")
+        fig.update_layout(barmode="stack")
+        fig.update_xaxes(tickformat="%d-%b", dtick=7 * 86400000 * 2)
+        st.plotly_chart(_layout(fig, 360), width="stretch")
+
+
+def share_heatmap(data: dict, port: str):
+    """Mean share of the week's total made by each weekday, per crop-year month, complete weeks only."""
+    d = data[port]
+    d = d[~d["projected"]].copy()
+    d["m"] = d.week.dt.strftime("%b")
+    z = []
+    for m in MONTHS_CROP:
+        g = d[d.m == m]
+        tot = g[DAYS].sum().sum()
+        z.append([g[x].sum() / tot if tot else np.nan for x in DAYS])
+    z = np.array(z)
+    fig = go.Figure(go.Heatmap(z=z, x=DAYS, y=MONTHS_CROP, colorscale=[[0, "#f4f9fa"], [1, "#1f8a9c"]], zmin=0.0,
+                               text=[[f"{v:.0%}" if not np.isnan(v) else "" for v in r] for r in z], texttemplate="%{text}",
+                               hovertemplate="%{y} %{x}: %{z:.1%}<extra></extra>", showscale=False))
+    fig.update_yaxes(autorange="reversed")
+    return _layout(fig, 380)
+
+
+def port_share_chart(data: dict):
+    df = weekly_totals(data)
+    df = df[df["Abidjan"].notna() & df["San Pedro"].notna() & (df["Combined"] > 0)]
+    share = (df["Abidjan"] / df["Combined"])
+    fig = go.Figure()
+    fig.add_scatter(x=df.index, y=share, name="Abidjan share (weekly)", mode="lines", line=dict(color="rgba(31,138,156,0.35)", width=1.2),
+                    hovertemplate="%{y:.0%}")
+    fig.add_scatter(x=df.index, y=(df["Abidjan"].rolling(8).sum() / df["Combined"].rolling(8).sum()), name="8-week",
+                    mode="lines", line=dict(color="#1f8a9c", width=3), hovertemplate="%{y:.0%}")
+    _layout(fig, 340)
+    fig.update_yaxes(tickformat=".0%", hoverformat=".0%", range=[0, 1])
+    return fig
+
+
+def backtest(data: dict) -> pd.DataFrame:
+    """Thursday projection (Mon-Thu known) of every complete week against its real total, using only earlier complete weeks."""
+    rows = []
+    for port in PORTS:
+        d = data[port].reset_index(drop=True)
+        vals = d[DAYS].to_numpy(float)
+        full = ~np.isnan(vals).any(axis=1)
+        for i in range(len(d)):
+            if not full[i]:
+                continue
+            hist = vals[:i][full[:i]]
+            if len(hist) < 20 or vals[i].sum() <= 0:
+                continue
+            proj = vals[i, :4].sum() / (hist[:, :4].sum() / hist.sum())
+            rows.append((port, d.week[i], proj / vals[i].sum() - 1))
+    return pd.DataFrame(rows, columns=["port", "week", "miss"])
+
+
+def render_accuracy(data: dict):
+    bt = backtest(data)
+    with st.container(border=True):
+        st.markdown("<div class='card-title'>Projection accuracy - Thursday cut-off</div>"
+                    "<div class='card-desc'>For every complete week: project the full week from Monday-Thursday only (using the weeks "
+                    "before it) and compare with the real total. Miss % = projection / actual - 1; positive = projection too high.</div>",
+                    unsafe_allow_html=True)
+        fig = go.Figure()
+        for port in PORTS:
+            g = bt[bt.port == port]
+            fig.add_scatter(x=g.week, y=g.miss, name=port, mode="lines+markers", marker=dict(size=4),
+                            line=dict(color=PORT_COL[port], width=1.6), hovertemplate="%{y:+.1%}")
+        fig.add_hline(y=0, line_color="#8a94a8", line_width=1)
+        _layout(fig, 360)
+        fig.update_yaxes(tickformat=".0%", hoverformat="+.1%")
+        st.plotly_chart(fig, width="stretch")
+        rows = []
+        for port in PORTS:
+            g = bt[bt.port == port].sort_values("week")
+            rec = g.tail(26)
+            rows.append(f"<tr><td class='wk'>{port}</td><td>{len(g)}</td><td>{g.miss.abs().mean():.1%}</td><td>{g.miss.mean():+.1%}</td>"
+                        f"<td>{rec.miss.abs().mean():.1%}</td><td>{rec.miss.mean():+.1%}</td></tr>")
+        head = ("<tr><th>Port</th><th>Weeks tested</th><th>Avg miss (all)</th><th>Bias (all)</th>"
+                "<th>Avg miss (last 26)</th><th>Bias (last 26)</th></tr>")
+        st.markdown(CSS + f"<div class='pj-wrap' style='max-height:none'><table class='pj'>{head}{''.join(rows)}</table></div>"
+                    "<div class='pj-note'>Avg miss = typical size of the error; bias = its direction (+ means the projection was too high).</div>",
+                    unsafe_allow_html=True)
+
+
+def render_week():
     data = build()
     render_entry(data)
+    render_week_chart(data)
+
+
+def render_ports():
+    data = build()
     allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week))
     cys = sorted({crop_year(w) for w in allw}, reverse=True)
     c1, _ = st.columns([1.2, 5], vertical_alignment="center")
@@ -305,3 +434,15 @@ def render():
         st.markdown(CSS + table_html(data, weeks), unsafe_allow_html=True)
         st.markdown(f"<div class='pj-note'>Latest week in the data: {max(allw):%d-%b-%Y}. Bars are scaled to the largest value in "
                     "each column group; WoW compares the combined total with the previous week.</div>", unsafe_allow_html=True)
+
+    left, right = st.columns(2)
+    with left, st.container(border=True):
+        st.markdown("<div class='card-title'>Weekday profile</div>"
+                    "<div class='card-desc'>Share of the week's arrivals that lands on each day, by month (complete weeks). "
+                    "This is the pattern the projection relies on.</div>", unsafe_allow_html=True)
+        port = st.radio("Port", PORTS, horizontal=True, label_visibility="collapsed", key="pj_hm_port")
+        st.plotly_chart(share_heatmap(data, port), width="stretch")
+    with right, st.container(border=True):
+        st.markdown("<div class='card-title'>Abidjan share of combined arrivals</div>"
+                    "<div class='card-desc'>Abidjan / (Abidjan + San Pedro), weekly and 8-week.</div>", unsafe_allow_html=True)
+        st.plotly_chart(port_share_chart(data), width="stretch")

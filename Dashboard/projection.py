@@ -195,6 +195,29 @@ def week_grids(raw: pd.DataFrame):
     return weeks, grids
 
 
+def as_text(grid: pd.DataFrame) -> pd.DataFrame:
+    """Numbers as plain text, empty cell = '' (a number column would show None)."""
+    return grid.apply(lambda col: col.map(lambda v: "" if pd.isna(v) else f"{v:.0f}" if float(v).is_integer() else f"{v}"))
+
+
+def to_number(grid: pd.DataFrame, orig: pd.DataFrame, bad: list, port: str) -> pd.DataFrame:
+    """Text grid back to numbers; '' / None = not reported; anything unreadable keeps the stored value and is reported in `bad`."""
+    out = grid.copy().astype(object)
+    for i in range(len(grid)):
+        for d in DAYS:
+            txt = grid.iloc[i][d]
+            txt = "" if txt is None or (isinstance(txt, float) and np.isnan(txt)) else str(txt).replace(",", "").strip()
+            try:
+                v = float(txt) if txt else np.nan
+                if v < 0:
+                    raise ValueError
+            except ValueError:
+                bad.append(f"{port} {grid.index[i]} {d}: '{txt}' is not a valid number - kept the stored value.")
+                v = orig.iloc[i][d]
+            out.iloc[i, out.columns.get_loc(d)] = v
+    return out.astype(float)
+
+
 def collect(weeks, orig: dict, edited: dict) -> dict:
     """{week: {port: {day: number or None}}} for the weeks whose cells differ from what is stored."""
     out = {}
@@ -263,11 +286,15 @@ def render_entry(data: dict):
                 st.markdown(f"<div style='background:{colour};color:#fff;font-weight:600;font-size:12px;text-align:center;"
                             f"padding:2px 0;border-radius:6px 6px 0 0;width:{74 + 62 * 6 + 2}px'>{p}</div>", unsafe_allow_html=True)
                 edited[p] = st.data_editor(
-                    orig[p], key=f"pj_ed_{p}_{ver}", width="content", row_height=26, height=26 * (len(weeks) + 1) + 16,
+                    as_text(orig[p]), key=f"pj_ed_{p}_{ver}", width="content", row_height=26, height=26 * (len(weeks) + 1) + 16,
                     column_config={"_index": st.column_config.Column("Week", width=74),
-                                   **{d: st.column_config.NumberColumn(d, min_value=0, step=1, format="%d", width=62) for d in DAYS}})
+                                   **{d: st.column_config.TextColumn(d, width=62) for d in DAYS}})
+        bad = []
+        edited = {p: to_number(edited[p], orig[p], bad, p) for p in PORTS}
         changes = collect(weeks, orig, edited)
         notes = entry_notes(raw, changes)
+        for n in bad:
+            st.error(n)
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
         for n in notes:
             st.warning(n)

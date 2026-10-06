@@ -47,7 +47,9 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
         if col not in df or df[col].notna().sum() == 0:
             continue
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
-        fig.add_scatter(x=df.week, y=y, name=label, mode="lines", connectgaps=False,
+        live = col.endswith("2627") and dash != "dash"           # this season: markers, so a single week is visible too
+        fig.add_scatter(x=df.week, y=y, name=label, mode="lines+markers" if live else "lines", connectgaps=False,
+                        marker=dict(size=7, color=colour),
                         line=dict(color=colour, dash=dash, width=width, shape="hv" if (dash == "dash" and not cumulative) else "linear"),
                         hovertemplate="%{y:,.0f}", visible=True if shown else "legendonly")
     if "etg_2627_proj" in df and df["etg_2627_proj"].any():          # the running week: projected, not final

@@ -68,26 +68,6 @@ def line_chart(t: pd.DataFrame, cumulative: bool, last_n: int):
     return _layout(fig, 400)
 
 
-def share_chart(typ: str):
-    """IVC vs Ghana by crop year (full years only - both origins have all 12 months)."""
-    m = load()
-    m = m[m.type == typ]
-    rows = []
-    for cy, g in m.groupby("crop_year"):
-        a = g[g.origin == "IVC"].kt
-        b = g[g.origin == "Ghana"].kt
-        if len(a) == 12 and len(b) == 12:
-            rows.append((cy, a.sum(), b.sum()))
-    d = pd.DataFrame(rows, columns=["cy", "IVC", "Ghana"]).sort_values("cy")
-    fig = go.Figure()
-    fig.add_bar(x=d.cy, y=d.IVC, name="IVC", marker_color="#1f8a9c", hovertemplate="%{y:,.0f}")
-    fig.add_bar(x=d.cy, y=d.Ghana, name="Ghana", marker_color="#c98a1f", hovertemplate="%{y:,.0f}")
-    fig.update_layout(barmode="stack")
-    for cy, a, b in rows:
-        fig.add_annotation(x=cy, y=a + b, text=f"{b / (a + b):.0%} Ghana", showarrow=False, yshift=10, font=dict(size=11, color="#5a6688"))
-    return _layout(fig, 340)
-
-
 def _cell(v, lo, hi):
     if pd.isna(v):
         return "<td class='na'>-</td>"
@@ -136,11 +116,6 @@ def render(origin: str):
         with st.container(border=True):
             st.markdown(f"<div class='card-title'>Cumulative arrivals {origin} ({typ})</div>", unsafe_allow_html=True)
             st.plotly_chart(line_chart(t, True, last_n), width="stretch")
-        if origin == COMBINED:
-            with st.container(border=True):
-                st.markdown("<div class='card-title'>Origin split by crop year</div>"
-                            "<div class='card-desc'>Complete crop years only.</div>", unsafe_allow_html=True)
-                st.plotly_chart(share_chart(typ), width="stretch")
     else:
         with st.container(border=True):
             st.markdown(f"<div class='card-title'>Monthly arrivals {origin} ({typ}) - all crop years</div>"

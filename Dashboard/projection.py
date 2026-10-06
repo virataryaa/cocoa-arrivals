@@ -175,45 +175,68 @@ def apply_week(frame: pd.DataFrame, week: pd.Timestamp, vals: dict) -> pd.DataFr
     return frame.reindex(columns=["port", "week", *DAYS])
 
 
-def current_week_values(raw: pd.DataFrame, week: pd.Timestamp) -> pd.DataFrame:
-    g = raw[raw.week == week].set_index("port")
-    return pd.DataFrame({d: [g[d].get(p, np.nan) if p in g.index else np.nan for p in PORTS] for d in DAYS}, index=PORTS)
+N_WEEKS = 8                                             # rows in the entry grid: the coming week + the last 7
 
 
-def grid_vals(grid: pd.DataFrame) -> dict:
-    return {p: {d: (None if pd.isna(grid.loc[p, d]) else float(grid.loc[p, d])) for d in DAYS} for p in PORTS}
-
-
-def preview(raw: pd.DataFrame, week: pd.Timestamp, vals: dict) -> dict:
-    """Projection of the entered week, using only the weeks before it."""
-    out = {}
+def week_grids(raw: pd.DataFrame):
+    """Rows = the coming week (blank) then the latest weeks, newest first; one grid per port, columns Mon-Sat."""
+    latest = pd.Timestamp(raw.week.max())
+    past = [pd.Timestamp(w) for w in sorted(raw.week.unique())[-(N_WEEKS - 1):][::-1]]
+    weeks = [latest + pd.Timedelta(days=7)] + past
+    grids = {}
     for p in PORTS:
-        sub = apply_week(raw[raw.port == p], week, {p: vals[p]})
-        r = project_port(sub.drop(columns="port")).set_index("week")
-        out[p] = r.loc[week] if week in r.index else None
+        g = raw[raw.port == p].set_index("week")
+        rows = [[g[d].get(w, np.nan) if w in g.index else np.nan for d in DAYS] for w in weeks]
+        grids[p] = pd.DataFrame(rows, columns=DAYS, index=[f"{w:%d-%b-%y}" for w in weeks])
+    return weeks, grids
+
+
+def collect(weeks, orig: dict, edited: dict) -> dict:
+    """{week: {port: {day: number or None}}} for the weeks whose cells differ from what is stored."""
+    out = {}
+    for i, w in enumerate(weeks):
+        vals, diff = {}, False
+        for p in PORTS:
+            o, e = orig[p].iloc[i].to_numpy(float), edited[p].iloc[i].to_numpy(float)
+            diff = diff or not np.array_equal(o, e, equal_nan=True)
+            vals[p] = {d: (None if np.isnan(x) else float(x)) for d, x in zip(DAYS, e)}
+        if diff:
+            out[w] = vals
     return out
 
 
-def entry_notes(raw: pd.DataFrame, vals: dict) -> list[str]:
-    """Things to double check: a day far above anything seen at that port (extra zero?)."""
+def entry_notes(raw: pd.DataFrame, changes: dict) -> list[str]:
+    """A day far above anything seen at that port (extra zero?)."""
     notes = []
     for p in PORTS:
         cap = np.nanmax(raw[raw.port == p][DAYS].to_numpy())
-        for d, v in vals[p].items():
-            if v is not None and v > 1.5 * cap:
-                notes.append(f"{p} {d} {v:,.0f} is above 1.5x the highest day ever recorded ({cap:,.0f}). Extra zero?")
+        for w, vals in changes.items():
+            for d, v in vals[p].items():
+                if v is not None and v > 1.5 * cap:
+                    notes.append(f"{p} {w:%d-%b} {d} {v:,.0f} is above 1.5x the highest day ever recorded ({cap:,.0f}). Extra zero?")
     return notes
 
 
-def save_week(week: pd.Timestamp, vals: dict):
-    msg = f"Week {week:%Y-%m-%d}: " + "; ".join(
-        f"{p} " + ",".join(f"{d} {v:,.0f}" for d, v in vals[p].items() if v is not None) for p in PORTS)
+def preview_data(raw: pd.DataFrame, changes: dict) -> dict:
+    """Projection of the grid as typed: stored data with the edited weeks swapped in."""
+    frame = raw.copy()
+    for w, vals in changes.items():
+        frame = apply_week(frame, w, vals)
+    return {p: project_port(frame[frame.port == p].drop(columns="port").sort_values("week")) for p in PORTS}
+
+
+def save_changes(changes: dict):
+    msg = "; ".join(f"{w:%Y-%m-%d}: " + " | ".join(
+        f"{p} " + ",".join(f"{v:,.0f}" for v in vals[p].values() if v is not None) for p in PORTS) for w, vals in changes.items())
 
     def change(text):
-        return _to_csv(apply_week(_frame(text), week, vals)), None
+        frame = _frame(text)
+        for w, vals in changes.items():
+            frame = apply_week(frame, w, vals)
+        return _to_csv(frame), None
 
     if entry_enabled():
-        new_text, _ = gh.commit(REPO_PATH, change, msg)
+        new_text, _ = gh.commit(REPO_PATH, change, "Weeks " + msg)
     else:                                                # local run: write the file directly
         new_text, _ = change(CSV.read_text(encoding="utf-8"))
     CSV.write_text(new_text, encoding="utf-8", newline="")   # show it now, before Cloud redeploys
@@ -221,62 +244,52 @@ def save_week(week: pd.Timestamp, vals: dict):
     build.clear()
 
 
-def preview_html(res: dict, vals: dict) -> str:
-    rows = []
-    for p in PORTS:
-        r = res[p]
-        if r is None or pd.isna(r["total"]):
-            rows.append(f"<tr><td class='wk'>{p}</td><td colspan=7 class='na'>nothing entered</td></tr>")
-            continue
-        tds = [f"<td class='wk'>{p}</td>"]
-        for d in DAYS:
-            tds.append(f"<td class='{'est' if vals[p][d] is None else ''}'>{_fmt(r[f'est_{d}'])}</td>")
-        tds.append(f"<td class='tot est'>{_fmt(r['total'])}<span class='tag'>P</span></td>")
-        rows.append("<tr>" + "".join(tds) + "</tr>")
-    tot = sum(r["total"] for r in res.values() if r is not None and not pd.isna(r["total"]))
-    head = "<tr><th>Port</th>" + "".join(f"<th>{d}</th>" for d in DAYS) + "<th>Week total</th></tr>"
-    rows.append(f"<tr><td class='wk'>Combined</td><td colspan=6></td><td class='tot'>{_fmt(tot)}</td></tr>")
-    return f"<div class='pj-wrap' style='max-height:none'><table class='pj'>{head}{''.join(rows)}</table></div>"
-
-
 def render_entry(data: dict):
     raw = load()
-    allw = sorted(raw.week.unique())
-    latest = pd.Timestamp(allw[-1])
-    full_last = all(not data[p][data[p].week == latest][[f"is_{d}" for d in DAYS]].to_numpy().any() for p in PORTS)
-    choices = [latest + pd.Timedelta(days=7)] + [pd.Timestamp(w) for w in allw[-8:][::-1]]
+    weeks, orig = week_grids(raw)
+    ver = st.session_state.get("pj_ver", 0)
     with st.container(border=True):
-        st.markdown("<div class='card-title'>Enter a week</div><div class='card-desc'>Type the days reported so far "
-                    "(Mon-Thu is enough), leave the rest blank, press <b>Project</b> to see the full week, "
-                    "<b>Save</b> to store it. A 0 means no arrivals; blank means not reported yet.</div>", unsafe_allow_html=True)
-        top = st.columns([1.5, 5], vertical_alignment="center")
-        with top[0]:
-            week = st.selectbox("Week", choices, index=0 if full_last else 1, label_visibility="collapsed", key="pj_week",
-                                format_func=lambda w: f"Week of  |  {w:%d-%b-%Y}")
-        grid = st.data_editor(
-            current_week_values(raw, week), key=f"pj_ed_{week:%Y%m%d}", width="stretch",
-            column_config={d: st.column_config.NumberColumn(d, min_value=0, step=1, format="%d") for d in DAYS})
-        vals = grid_vals(grid)
-        notes = entry_notes(raw, vals)
+        st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Type over any cell: blank = not reported, "
+                    "0 = no arrivals. Top row is the coming week. <b>Project</b> fills the full weeks, <b>Save</b> stores what you typed.</div>",
+                    unsafe_allow_html=True)
+        cols = st.columns(2)
+        edited = {}
+        for c, p, colour in zip(cols, PORTS, ["#1f8a9c", "#0a2463"]):
+            with c:
+                st.markdown(f"<div style='background:{colour};color:#fff;font-weight:600;font-size:12px;text-align:center;"
+                            f"padding:3px 0;border-radius:6px 6px 0 0'>{p}</div>", unsafe_allow_html=True)
+                edited[p] = st.data_editor(
+                    orig[p], key=f"pj_ed_{p}_{ver}", width="stretch", height=38 + 35 * len(weeks),
+                    column_config={d: st.column_config.NumberColumn(d, min_value=0, step=1, format="%d") for d in DAYS})
+        changes = collect(weeks, orig, edited)
+        notes = entry_notes(raw, changes)
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
         for n in notes:
             st.warning(n)
         b = st.columns([1, 1, 6])
         do_project = b[0].button("Project", type="primary", width="stretch")
-        do_save = b[1].button("Save", width="stretch", disabled=not override)
+        do_save = b[1].button("Save", width="stretch", disabled=not (changes and override))
         if do_project:
-            st.session_state["pj_show"] = week
-        if st.session_state.get("pj_show") == week and any(x is not None for p in PORTS for x in vals[p].values()):
-            st.markdown(CSS + preview_html(preview(raw, week, vals), vals), unsafe_allow_html=True)
-            st.markdown("<div class='pj-note'>Italic = projected from the share those days normally make of the week "
-                        "(complete weeks before this one). Not saved until you press Save.</div>", unsafe_allow_html=True)
+            st.session_state["pj_show"] = True
+        if st.session_state.get("pj_show"):
+            pdata = preview_data(raw, changes)
+            partial = [w for w in weeks if any(bool(t.set_index("week").loc[w, "projected"]) for t in pdata.values()
+                                              if w in set(t.week))]
+            show = [w for w in partial if w in set(pdata["Abidjan"].week) | set(pdata["San Pedro"].week)]
+            if show:
+                st.markdown(CSS + table_html(pdata, pd.DatetimeIndex(sorted(show, reverse=True))), unsafe_allow_html=True)
+                st.markdown("<div class='pj-note'>Hatched italic = projected from the share those days normally make of the week "
+                            "(complete weeks before it). Not saved until you press Save.</div>", unsafe_allow_html=True)
+            else:
+                st.caption("Nothing to project: every week in the grid is complete or empty.")
         if do_save:
             try:
-                save_week(week, vals)
+                save_changes(changes)
             except gh.GitHubError as ex:
                 st.error(str(ex))
             else:
-                st.session_state["pj_show"] = None
+                st.session_state["pj_ver"] = ver + 1
+                st.session_state["pj_show"] = False
                 st.rerun()
         if entry_enabled():
             with st.expander("Save history", expanded=False):
@@ -289,7 +302,6 @@ def render_entry(data: dict):
 
 
 PORT_COL = {"Abidjan": "#1f8a9c", "San Pedro": "#0a2463"}
-MONTHS_CROP = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
 
 
 def _layout(fig, height):
@@ -299,68 +311,6 @@ def _layout(fig, height):
         xaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578"),
         yaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578", tickformat=",", hoverformat=",.0f"),
         legend=dict(orientation="h", x=0, y=-0.15, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)"))
-    return fig
-
-
-def weekly_totals(data: dict) -> pd.DataFrame:
-    ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
-    idx = ab.index.union(sp.index)
-    df = pd.DataFrame({"Abidjan": ab["total"].reindex(idx), "San Pedro": sp["total"].reindex(idx)})
-    df["proj"] = (ab["projected"].reindex(idx).fillna(False).astype(bool) | sp["projected"].reindex(idx).fillna(False).astype(bool))
-    df["Combined"] = df["Abidjan"] + df["San Pedro"]
-    return df
-
-
-def render_week_chart(data: dict):
-    """Last 16 weeks stacked by port (projected weeks hatched) + the same week a year earlier."""
-    df = weekly_totals(data).tail(16)
-    allw = weekly_totals(data)
-    ly = allw["Combined"].reindex(df.index - pd.Timedelta(days=364))
-    with st.container(border=True):
-        st.markdown("<div class='card-title'>Last 16 weeks, combined (tonnes)</div>"
-                    "<div class='card-desc'>Abidjan + San Pedro. Hatched bars are projected weeks. The marker is the same week a year earlier.</div>",
-                    unsafe_allow_html=True)
-        fig = go.Figure()
-        for port in PORTS:
-            fig.add_bar(x=df.index, y=df[port], name=port, marker_color=PORT_COL[port],
-                        marker_pattern_shape=["/" if p else "" for p in df["proj"]], marker_pattern_fgcolor="rgba(255,255,255,0.7)",
-                        hovertemplate="%{y:,.0f}")
-        fig.add_scatter(x=df.index, y=ly.to_numpy(), name="Same week last year", mode="markers",
-                        marker=dict(symbol="diamond", size=9, color="#c98a1f", line=dict(color="#fff", width=1)), hovertemplate="%{y:,.0f}")
-        fig.update_layout(barmode="stack")
-        fig.update_xaxes(tickformat="%d-%b", dtick=7 * 86400000 * 2)
-        st.plotly_chart(_layout(fig, 360), width="stretch")
-
-
-def share_heatmap(data: dict, port: str):
-    """Mean share of the week's total made by each weekday, per crop-year month, complete weeks only."""
-    d = data[port]
-    d = d[~d["projected"]].copy()
-    d["m"] = d.week.dt.strftime("%b")
-    z = []
-    for m in MONTHS_CROP:
-        g = d[d.m == m]
-        tot = g[DAYS].sum().sum()
-        z.append([g[x].sum() / tot if tot else np.nan for x in DAYS])
-    z = np.array(z)
-    fig = go.Figure(go.Heatmap(z=z, x=DAYS, y=MONTHS_CROP, colorscale=[[0, "#f4f9fa"], [1, "#1f8a9c"]], zmin=0.0,
-                               text=[[f"{v:.0%}" if not np.isnan(v) else "" for v in r] for r in z], texttemplate="%{text}",
-                               hovertemplate="%{y} %{x}: %{z:.1%}<extra></extra>", showscale=False))
-    fig.update_yaxes(autorange="reversed")
-    return _layout(fig, 380)
-
-
-def port_share_chart(data: dict):
-    df = weekly_totals(data)
-    df = df[df["Abidjan"].notna() & df["San Pedro"].notna() & (df["Combined"] > 0)]
-    share = (df["Abidjan"] / df["Combined"])
-    fig = go.Figure()
-    fig.add_scatter(x=df.index, y=share, name="Abidjan share (weekly)", mode="lines", line=dict(color="rgba(31,138,156,0.35)", width=1.2),
-                    hovertemplate="%{y:.0%}")
-    fig.add_scatter(x=df.index, y=(df["Abidjan"].rolling(8).sum() / df["Combined"].rolling(8).sum()), name="8-week",
-                    mode="lines", line=dict(color="#1f8a9c", width=3), hovertemplate="%{y:.0%}")
-    _layout(fig, 340)
-    fig.update_yaxes(tickformat=".0%", hoverformat=".0%", range=[0, 1])
     return fig
 
 
@@ -414,35 +364,3 @@ def render_accuracy(data: dict):
 def render_week():
     data = build()
     render_entry(data)
-    render_week_chart(data)
-
-
-def render_ports():
-    data = build()
-    allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week))
-    cys = sorted({crop_year(w) for w in allw}, reverse=True)
-    c1, _ = st.columns([1.2, 5], vertical_alignment="center")
-    with c1:
-        cy = st.selectbox("Crop year", cys, label_visibility="collapsed", format_func=lambda s: f"Crop year  |  {s}")
-    weeks = pd.DatetimeIndex([w for w in allw if crop_year(w) == cy]).sort_values(ascending=False)
-
-    with st.container(border=True):
-        st.markdown("<div class='card-title'>Weekly arrivals by port (tonnes)</div>"
-                    "<div class='card-desc'>Monday to Saturday as reported. Hatched, italic figures are not reported yet and are "
-                    "projected: the days we have, divided by the share those days normally make of a full week "
-                    "(history of complete weeks, per port). <b>P</b> marks a projected week total.</div>", unsafe_allow_html=True)
-        st.markdown(CSS + table_html(data, weeks), unsafe_allow_html=True)
-        st.markdown(f"<div class='pj-note'>Latest week in the data: {max(allw):%d-%b-%Y}. Bars are scaled to the largest value in "
-                    "each column group; WoW compares the combined total with the previous week.</div>", unsafe_allow_html=True)
-
-    left, right = st.columns(2)
-    with left, st.container(border=True):
-        st.markdown("<div class='card-title'>Weekday profile</div>"
-                    "<div class='card-desc'>Share of the week's arrivals that lands on each day, by month (complete weeks). "
-                    "This is the pattern the projection relies on.</div>", unsafe_allow_html=True)
-        port = st.radio("Port", PORTS, horizontal=True, label_visibility="collapsed", key="pj_hm_port")
-        st.plotly_chart(share_heatmap(data, port), width="stretch")
-    with right, st.container(border=True):
-        st.markdown("<div class='card-title'>Abidjan share of combined arrivals</div>"
-                    "<div class='card-desc'>Abidjan / (Abidjan + San Pedro), weekly and 8-week.</div>", unsafe_allow_html=True)
-        st.plotly_chart(port_share_chart(data), width="stretch")

@@ -56,15 +56,60 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
     return fig
 
 
+TABLE_CSS = """
+<style>
+.st-wrap { overflow: auto; max-height: 560px; border: 1px solid #e3e7f0; border-radius: 10px; background: #fff; display: inline-block; max-width: 100%; }
+.st-tab { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.st-tab th { position: sticky; top: 0; background: #0a2463; color: #fff; font-weight: 600; padding: 4px 10px; text-align: center; white-space: nowrap; }
+.st-tab td { padding: 2px 10px; text-align: right; border-bottom: 1px solid #eef0f6; white-space: nowrap; font-variant-numeric: tabular-nums; color: #1a1a2e; }
+.st-tab td.wk { text-align: center; font-weight: 600; background: #f6f7fb; }
+.st-tab td.na { color: #b8bfd2; }
+</style>
+"""
+
+
+def table_html(df: pd.DataFrame, cumulative: bool) -> str:
+    cols = [(label, col) for label, col, *_ in SERIES if col in df and df[col].notna().any()]
+    data = {}
+    for label, col in cols:
+        data[label] = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
+    head = "<tr><th>Week</th>" + "".join(f"<th>{label}</th>" for label, _ in cols) + "</tr>"
+    rows = []
+    for i, wk in enumerate(df.week):
+        tds = [f"<td class='wk'>{wk}</td>"]
+        for label, _ in cols:
+            v = data[label].iloc[i]
+            s = data[label]
+            if pd.isna(v):
+                tds.append("<td class='na'>-</td>")
+            else:
+                a = (v - s.min()) / (s.max() - s.min()) if s.max() > s.min() else 0
+                tds.append(f"<td style='background:rgba(31,138,156,{0.04 + 0.28 * a:.2f})'>{v:,.0f}</td>")
+        rows.append("<tr>" + "".join(tds) + "</tr>")
+    return f"<div class='st-wrap'><table class='st-tab'>{head}{''.join(rows)}</table></div>"
+
+
 def render(origin: str = "IVC"):
     weekly, monthly = load()
-    oc = st.columns([1.3, 6], vertical_alignment="center")
+    oc = st.columns([1.3, 1.4, 1.6, 4], vertical_alignment="center")
     with oc[0]:
         typ = st.radio("Forestero", ["Stat", "Tree"], horizontal=True, label_visibility="collapsed", key="fo_type",
                        help="Forestero monthly series used for the dashed lines: Stat = statistical, Tree = tree-count based.")
+    with oc[1]:
+        view = st.radio("View", ["Charts", "Table"], horizontal=True, label_visibility="collapsed", key="season_view")
     df = weekly.copy()
     for col, cy in [("fo_2526", "25/26"), ("fo_2627", "26/27")]:
         df[col] = df.week.map(forestero_weekly(monthly, origin, typ, cy))
+
+    if view == "Table":
+        with oc[2]:
+            cum = st.radio("Basis", ["Weekly", "Cumulative"], horizontal=True, label_visibility="collapsed", key="season_basis") == "Cumulative"
+        with st.container(border=True):
+            st.markdown(f"<div class='card-title'>{'Cumulative' if cum else 'Weekly'} arrivals {origin} - by week of crop year</div>"
+                        "<div class='card-desc'>Thousand tonnes, week 1 = first week of October. Shading compares each column with itself. "
+                        "Forestero = monthly figure divided over 4 weeks per month.</div>", unsafe_allow_html=True)
+            st.markdown(TABLE_CSS + table_html(df, cum), unsafe_allow_html=True)
+        return
 
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Weekly arrivals 25/26 {origin}</div>"

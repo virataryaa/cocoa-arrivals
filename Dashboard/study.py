@@ -165,13 +165,13 @@ def scatter_chart(p: pd.Series, arr: pd.Series, lag: int, res):
 def render():
     country = "IVC"                                       # Ivory Coast first: it has the port (ETG) arrivals
     c = st.columns([0.01, 2.6, 1.8, 3.6], vertical_alignment="center")
-    sources = ["ETG (ports)", "Forestero Stat", "Forestero Tree"]
+    sources = ["Manual (ports)", "Forestero Stat", "Forestero Tree"]
     with c[1]:
         source = st.radio("Arrivals", sources, horizontal=True, label_visibility="collapsed", key=f"st_src_{country}")
     p = pods(country)
-    if source.startswith("ETG"):
+    if source.startswith("Manual"):
         arr, running = etg_monthly()
-        est, est_label = running, "ETG running month (projected)"
+        est, est_label = running, "Manual running month (projected)"
     else:
         arr, est = forestero("Ghana" if country == "GH" else "IVC", source.split()[-1])
         est_label = "Forestero estimate"

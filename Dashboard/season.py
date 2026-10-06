@@ -13,13 +13,13 @@ WEEKS_IN_MONTH = [4] * 12                               # every month = 4 weeks 
 # (label, column, colour, dash, width) - same look as the desk Excel
 # (label, column, colour, dash, width, shown) - shown=False starts hidden; a click on its legend entry brings it back
 SERIES = [
-    ("ETG (26/27)", "etg_2627", "#0a2463", "solid", 3.5, True),
+    ("Manual (26/27)", "etg_2627", "#0a2463", "solid", 3.5, True),
     ("Eikon (26/27)", "eikon_2627", "#e07b39", "solid", 3, True),
     ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5, True),
-    ("ETG (25/26)", "etg_2526", "#2e75b6", "solid", 2.5, True),
+    ("Manual (25/26)", "etg_2526", "#2e75b6", "solid", 2.5, True),
     ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5, True),
     ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5, True),
-    ("ETG (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5, False),
+    ("Manual (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5, False),
     ("Eikon (24/25)", "eikon_2425", "#843c0c", "dot", 2.5, False),
 ]
 
@@ -55,7 +55,7 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
     if "etg_2627_proj" in df and df["etg_2627_proj"].any():          # the running week: projected, not final
         y = df["etg_2627"].cumsum(skipna=True).where(df["etg_2627"].notna()) if cumulative else df["etg_2627"]
         m = df["etg_2627_proj"]
-        fig.add_scatter(x=df.week[m], y=y[m], name="ETG (26/27) projected", mode="markers",
+        fig.add_scatter(x=df.week[m], y=y[m], name="Manual (26/27) projected", mode="markers",
                         marker=dict(symbol="circle-open", size=11, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
     fig.update_layout(
         template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",

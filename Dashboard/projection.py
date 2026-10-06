@@ -143,7 +143,7 @@ def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: fro
 
     h1 = ("<tr><th rowspan=2>Week of</th><th class='p1' colspan=7>Abidjan</th><th class='p2' colspan=7>San Pedro</th>"
           "<th class='p3' rowspan=2>Combined</th>" + ("<th class='p4' colspan=2>Eikon</th>" if eik is not None else "") + "</tr>")
-    h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + ("<th>Total</th><th>ETG - Eikon</th>" if eik is not None else "") + "</tr>"
+    h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + ("<th>Total</th><th>Manual - Eikon</th>" if eik is not None else "") + "</tr>"
     rows = []
     for w in weeks:
         tds = [f"<td class='wk{' mk' if w in mark else ''}'>{w:%d-%b-%y}</td>"]

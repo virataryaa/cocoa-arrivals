@@ -17,8 +17,8 @@ SERIES = [
     ("Eikon (26/27)", "eikon_2627", "#e07b39", "solid", 3, True),
     ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5, True),
     ("ETG (25/26)", "etg_2526", "#2e75b6", "solid", 2.5, True),
-    ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5, False),
-    ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5, False),
+    ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5, True),
+    ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5, True),
     ("ETG (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5, False),
     ("Eikon (24/25)", "eikon_2425", "#843c0c", "dot", 2.5, False),
 ]

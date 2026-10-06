@@ -85,6 +85,8 @@ def line_chart(origin: str, cumulative: bool, last_n: int):
             fig.add_scatter(x=CROP_MONTHS, y=y, name=cy, legendgroup=cy, showlegend=typ == "Stat", mode="lines", connectgaps=False,
                             line=dict(color=colour, dash=DASH[typ], width=3 if newest else 2 if prev else 1.4),
                             hovertemplate=f"{cy} {typ}: %{{y:,.0f}}<extra></extra>")
+    for typ in TYPES:                                   # legend key for the line styles
+        fig.add_scatter(x=[None], y=[None], name=typ, mode="lines", line=dict(color="#5a6688", dash=DASH[typ], width=2))
     return _layout(fig, 300)
 
 
@@ -223,9 +225,7 @@ def render_edit(origin: str):
     years = list(orig.columns[2:])
     ver = st.session_state.get(f"mo_ver_{origin}", 0)
     with st.container(border=True):
-        st.markdown(f"<div class='card-title'>Edit Forestero {origin}</div><div class='card-desc'>Thousand tonnes, Stat and Tree together. "
-                    f"Type over any cell, blank = no figure. The last column ({years[-1]}) is the next crop year, left blank for you to fill. "
-                    "<b>Save</b> stores the changes; the table below updates after Save.</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-title'>Edit Forestero {origin}</div>", unsafe_allow_html=True)
         cfg = {"Month": st.column_config.TextColumn("Month", width=60, disabled=True),
                "Type": st.column_config.TextColumn("Type", width=56, disabled=True)}
         cfg.update({cy: st.column_config.TextColumn(cy, width=64) for cy in years})
@@ -266,20 +266,16 @@ def render(origin: str):
             last_n = {"Last 5": 5, "All": 0}[st.radio("Years", ["Last 5", "All"], horizontal=True, label_visibility="collapsed", key=f"mo_n_{origin}")]
         left, right = st.columns(2)
         with left, st.container(border=True):
-            st.markdown(f"<div class='card-title'>Monthly arrivals {origin}</div>"
-                        "<div class='card-desc'>Forestero, thousand tonnes. Solid = Stat, dotted = Tree. Dark blue = current crop year.</div>",
+            st.markdown(f"<div class='card-title'>Monthly arrivals {origin}</div>",
                         unsafe_allow_html=True)
             st.plotly_chart(line_chart(origin, False, last_n), width="stretch")
         with right, st.container(border=True):
-            st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>"
-                        "<div class='card-desc'>Running total from October. Solid = Stat, dotted = Tree.</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
             st.plotly_chart(line_chart(origin, True, last_n), width="stretch")
     else:
         if origin != COMBINED:
             render_edit(origin)
         with st.container(border=True):
-            st.markdown(f"<div class='card-title'>Monthly arrivals {origin} - all crop years</div>"
-                        "<div class='card-desc'>Thousand tonnes. Shading compares each month with the same month in other years. "
-                        "YTD YoY compares the months reported so far with the same months a year earlier.</div>",
+            st.markdown(f"<div class='card-title'>Monthly arrivals {origin} - all crop years</div>",
                         unsafe_allow_html=True)
             st.markdown(CSS + table_html(origin), unsafe_allow_html=True)

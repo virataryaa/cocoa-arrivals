@@ -18,7 +18,6 @@ div[role="radiogroup"] label:has(input:checked) { background: #0a2463 !important
 div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #ffffff !important; font-weight: 600; }
 /* header */
 .app-title { color: #0a2463; font-weight: 800; font-size: 1.55rem; letter-spacing: -0.01em; line-height: 1.1; }
-.app-sub { color: #7a86a8; font-size: 0.8rem; margin-top: 2px; }
 /* origin: segmented control */
 .st-key-main, .st-key-main [data-testid="stRadio"], .st-key-main [data-testid="stRadio"] > div { width: 100% !important; display: flex; justify-content: flex-end; }
 .st-key-main div[role="radiogroup"] { background: #e9ecf4; padding: 4px; border-radius: 12px; gap: 4px; box-shadow: inset 0 1px 2px rgba(10,36,99,0.06); }
@@ -54,14 +53,11 @@ import season
 ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
 PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"], monthly.COMBINED: ["Forestero : Monthly"]}
 
-SUB = {"IVC": "Ivory Coast port arrivals - Abidjan + San Pedro, Eikon, Forestero",
-       "Ghana": "Ghana arrivals - Forestero monthly",
-       monthly.COMBINED: "Ivory Coast + Ghana - Forestero monthly combined"}
 head_l, head_r = st.columns([5, 2], vertical_alignment="center")
 with head_r, st.container(key="main"):
     origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
 with head_l:
-    st.markdown(f"<div class='app-title'>Cocoa Arrivals</div><div class='app-sub'>{SUB[origin]}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='app-title'>Cocoa Arrivals</div>", unsafe_allow_html=True)
 with st.container(key="nav"):
     page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
 

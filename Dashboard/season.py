@@ -118,16 +118,12 @@ def render(origin: str = "IVC"):
         with oc[2]:
             cum = st.radio("Basis", ["Weekly", "Cumulative"], horizontal=True, label_visibility="collapsed", key="season_basis") == "Cumulative"
         with st.container(border=True):
-            st.markdown(f"<div class='card-title'>{'Cumulative' if cum else 'Weekly'} arrivals {origin} - by week of crop year</div>"
-                        "<div class='card-desc'>Thousand tonnes, week 1 = first week of October. Shading compares each column with itself. "
-                        "Forestero = monthly figure divided over 4 weeks per month.</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card-title'>{'Cumulative' if cum else 'Weekly'} arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
             st.markdown(TABLE_CSS + table_html(df, cum), unsafe_allow_html=True)
         return
 
     with st.container(border=True):
-        st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>"
-                    "<div class='card-desc'>Forestero lines are the monthly figure divided over that month's weeks "
-                    "(every month is treated as 4 weeks, so the line covers weeks 1-48).</div>",
+        st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>",
                     unsafe_allow_html=True)
         st.plotly_chart(chart(df, False, 430), width="stretch")
     with st.container(border=True):

@@ -343,9 +343,7 @@ def render_entry(data: dict):
     weeks, orig = week_grid(raw, eik)
     ver = st.session_state.get("pj_ver", 0)
     with st.container(border=True):
-        st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Type over any cell: blank = not reported, "
-                    "0 = no arrivals. Top row is the coming week. Eikon = weekly total of both ports (tonnes). <b>Project</b> fills the full "
-                    "weeks in the History table below, <b>Save</b> stores what you typed.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Blank = not reported, 0 = no arrivals.</div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='display:flex;font-size:12px;font-weight:600;color:#fff;text-align:center;margin-bottom:1px'>"
             f"<div style='width:{W_WEEK}px'></div>"
@@ -427,9 +425,7 @@ def render_history(data: dict, mark: frozenset = frozenset(), eik: pd.Series | N
     allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week), reverse=True)
     eik = load_eikon() if eik is None else eik
     with st.container(border=True):
-        st.markdown("<div class='card-title'>History</div><div class='card-desc'>Every week on file, newest first (tonnes). "
-                    "Hatched italic = not reported, projected; <b>P</b> = projected total. Eikon = its weekly total; ETG - Eikon = combined total minus Eikon (tonnes)."
-                    "</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card-title'>History</div>", unsafe_allow_html=True)
         st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True, mark=mark, eik=eik), unsafe_allow_html=True)
 
 

@@ -49,6 +49,11 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
         fig.add_scatter(x=df.week, y=y, name=label, mode="lines", connectgaps=False,
                         line=dict(color=colour, dash=dash, width=width, shape="hv" if (dash == "dash" and not cumulative) else "linear"),
                         hovertemplate="%{y:,.0f}")
+    if "etg_2627_proj" in df and df["etg_2627_proj"].any():          # the running week: projected, not final
+        y = df["etg_2627"].cumsum(skipna=True).where(df["etg_2627"].notna()) if cumulative else df["etg_2627"]
+        m = df["etg_2627_proj"]
+        fig.add_scatter(x=df.week[m], y=y[m], name="ETG (26/27) projected", mode="markers",
+                        marker=dict(symbol="circle-open", size=11, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
     fig.update_layout(
         template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#1a1a2e"), hovermode="x unified", height=height,
@@ -107,6 +112,7 @@ def render(origin: str = "IVC"):
     live = projection.crop_series(projection.build(), projection.load_eikon(), 2026)     # 26/27 from the entry data
     df["etg_2627"] = df.week.map(live.set_index("week")["etg"])
     df["eikon_2627"] = df.week.map(live.set_index("week")["eikon"])
+    df["etg_2627_proj"] = df.week.map(live.set_index("week")["proj"]).fillna(False).astype(bool)
 
     if view == "Table":
         with oc[2]:
@@ -119,7 +125,7 @@ def render(origin: str = "IVC"):
         return
 
     with st.container(border=True):
-        st.markdown(f"<div class='card-title'>Weekly arrivals 25/26 {origin}</div>"
+        st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>"
                     "<div class='card-desc'>Forestero lines are the monthly figure divided over that month's weeks "
                     "(every month is treated as 4 weeks, so the line covers weeks 1-48).</div>",
                     unsafe_allow_html=True)

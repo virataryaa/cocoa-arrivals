@@ -120,14 +120,13 @@ def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: fro
     ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
     all_w = ab.index.union(sp.index)
     comb_all = ab["total"].reindex(all_w) + sp["total"].reindex(all_w)
-    prev_all = comb_all.reindex(all_w - pd.Timedelta(days=7)).set_axis(all_w)   # NaN when the previous week is missing
     dmax = {p: np.nanmax(data[p][[f"est_{x}" for x in DAYS]].to_numpy()) for p in PORTS}
     tmax = {p: np.nanmax(data[p]["total"]) for p in PORTS}
     cmax = np.nanmax(comb_all)
 
     h1 = ("<tr><th rowspan=2>Week of</th><th class='p1' colspan=7>Abidjan</th><th class='p2' colspan=7>San Pedro</th>"
-          "<th class='p3' colspan=2>Combined</th>" + ("<th class='p4' colspan=2>Eikon</th>" if eik is not None else "") + "</tr>")
-    h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + "<th>Total</th><th>WoW</th>" + ("<th>Total</th><th>vs ETG</th>" if eik is not None else "") + "</tr>"
+          "<th class='p3' rowspan=2>Combined</th>" + ("<th class='p4' colspan=2>Eikon</th>" if eik is not None else "") + "</tr>")
+    h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + ("<th>Total</th><th>ETG - Eikon</th>" if eik is not None else "") + "</tr>"
     rows = []
     for w in weeks:
         tds = [f"<td class='wk{' mk' if w in mark else ''}'>{w:%d-%b-%y}</td>"]
@@ -148,14 +147,11 @@ def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: fro
         c = comb_all[w]
         proj = any(bool(t.loc[w, "projected"]) for t in (ab, sp) if w in t.index)
         tds.append(f"<td class='tot {'est' if proj else ''}' style=\"{_bar(c, cmax, BAR['Combined'], proj)}\">{_fmt(c)}</td>")
-        pv = prev_all[w]
-        wow = c / pv - 1 if pd.notna(pv) and pv else np.nan
-        tds.append("<td class='na'>-</td>" if np.isnan(wow) else f"<td class='{'up' if wow >= 0 else 'dn'}'>{wow:+.0%}</td>")
         if eik is not None:
             ev = eik.get(w, np.nan)
             tds.append(f"<td style=\"{_bar(ev, np.nanmax(eik.to_numpy()), BAR['Eikon'], False)}\">{_fmt(ev)}</td>")
-            gap = ev / c - 1 if pd.notna(ev) and pd.notna(c) and c else np.nan
-            tds.append("<td class='na'>-</td>" if np.isnan(gap) else f"<td>{gap:+.1%}</td>")
+            gap = c - ev if pd.notna(ev) and pd.notna(c) else np.nan
+            tds.append("<td class='na'>-</td>" if np.isnan(gap) else f"<td class='{'up' if gap >= 0 else 'dn'}'>{gap:+,.0f}</td>")
         rows.append("<tr>" + "".join(tds) + "</tr>")
     cls = " fit" if fit else ""
     return f"<div class='pj-wrap{cls}'><table class='pj{cls}'>{h1}{h2}{''.join(rows)}</table></div>"
@@ -413,17 +409,18 @@ def crop_week_one(start_year: int) -> pd.Timestamp:
 
 
 def crop_series(data: dict, eik: pd.Series, start_year: int) -> pd.DataFrame:
-    """Weeks 1-51 of the crop year starting `start_year`: ETG = Abidjan + San Pedro (complete weeks only), Eikon, both in thousand tonnes."""
+    """Weeks 1-51 of the crop year starting `start_year`: ETG = Abidjan + San Pedro (running week = projected total, flagged in `proj`), Eikon, both in thousand tonnes."""
     ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
     w1 = crop_week_one(start_year)
     rows = []
     for n in range(1, 52):
         w = w1 + pd.Timedelta(days=7 * (n - 1))
-        etg = np.nan
-        if w in ab.index and w in sp.index and not ab.loc[w, "projected"] and not sp.loc[w, "projected"]:
+        etg, proj = np.nan, False
+        if w in ab.index and w in sp.index:                      # a week still running counts with its projected total
             etg = (ab.loc[w, "total"] + sp.loc[w, "total"]) / 1000
-        rows.append((n, etg, eik.get(w, np.nan) / 1000))
-    return pd.DataFrame(rows, columns=["week", "etg", "eikon"])
+            proj = bool(ab.loc[w, "projected"] or sp.loc[w, "projected"])
+        rows.append((n, etg, proj, eik.get(w, np.nan) / 1000))
+    return pd.DataFrame(rows, columns=["week", "etg", "proj", "eikon"])
 
 
 def render_history(data: dict, mark: frozenset = frozenset(), eik: pd.Series | None = None):
@@ -431,8 +428,8 @@ def render_history(data: dict, mark: frozenset = frozenset(), eik: pd.Series | N
     eik = load_eikon() if eik is None else eik
     with st.container(border=True):
         st.markdown("<div class='card-title'>History</div><div class='card-desc'>Every week on file, newest first (tonnes). "
-                    "Hatched italic = not reported, projected; <b>P</b> = projected total. Eikon = its weekly total and the gap to the "
-                    "combined total.</div>", unsafe_allow_html=True)
+                    "Hatched italic = not reported, projected; <b>P</b> = projected total. Eikon = its weekly total; ETG - Eikon = combined total minus Eikon (tonnes)."
+                    "</div>", unsafe_allow_html=True)
         st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True, mark=mark, eik=eik), unsafe_allow_html=True)
 
 

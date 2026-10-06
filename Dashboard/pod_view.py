@@ -202,8 +202,7 @@ def render_entry():
     cfg.update({c: st.column_config.TextColumn(SHORT[c], width=74) for c in ENTRY_CLASSES})
     changes, bad, notes = {}, [], []
     with st.container(border=True):
-        st.markdown("<div class='card-title'>Enter pod counts</div><div class='card-desc'>Blank = not surveyed. "
-                    "Top row of each table is the coming month.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card-title'>Enter pod counts</div><div class='card-desc'>Blank = not surveyed.</div>", unsafe_allow_html=True)
         for country in ENTRY_ORDER:
             months, orig = entry_grid(raw, country)
             name = "Ivory Coast (IVC)" if country == "IVC" else "Ghana (GH)"

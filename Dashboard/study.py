@@ -124,14 +124,17 @@ def combined_chart(p, arr_act, arr_est, implied, est_label, lag):
 
 def lag_chart(lt: pd.DataFrame, best: int):
     fig = go.Figure()
+    r2txt = lambda s: [f"{v * v:.2f}" if pd.notna(v) else "" for v in s]
     fig.add_bar(x=lt.lag, y=lt.pods, name="Pod load", marker_color=[NAVY if l == best else "rgba(10,36,99,0.35)" for l in lt.lag],
-                hovertemplate="lag %{x}: r = %{y:.2f}<extra>Pod load</extra>")
+                text=r2txt(lt.pods), textposition="outside", textfont=dict(size=9, color=NAVY),
+                customdata=lt.pods ** 2, hovertemplate="lag %{x}: r = %{y:.2f}, R² = %{customdata:.2f}<extra>Pod load</extra>")
     fig.add_bar(x=lt.lag, y=lt.settings, name="Settings", marker_color="rgba(224,123,57,0.55)",
-                hovertemplate="lag %{x}: r = %{y:.2f}<extra>Settings</extra>")
+                text=r2txt(lt.settings), textposition="outside", textfont=dict(size=9, color=ORANGE),
+                customdata=lt.settings ** 2, hovertemplate="lag %{x}: r = %{y:.2f}, R² = %{customdata:.2f}<extra>Settings</extra>")
     fig.update_layout(template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=300,
                       margin=dict(t=10, b=10, l=10, r=10), barmode="group", font=dict(size=11, color="#1a1a2e"),
                       legend=dict(orientation="h", x=0, y=-0.2, yanchor="top"),
-                      xaxis=dict(title="pods lead arrivals by (months)", dtick=1), yaxis=dict(title="correlation", range=[-1, 1], zeroline=True))
+                      xaxis=dict(title="pods lead arrivals by (months)", dtick=1), yaxis=dict(title="correlation (r)", range=[-1.15, 1.15], zeroline=True))
     return fig
 
 
@@ -154,45 +157,6 @@ def scatter_chart(p: pd.Series, arr: pd.Series, lag: int, res):
                       legend=dict(orientation="h", x=0, y=-0.2, yanchor="top"),
                       xaxis=dict(title=f"pod load {lag} months earlier (per tree)"), yaxis=dict(title="arrivals, kt", rangemode="tozero"))
     return fig
-
-
-# ---------------------------------------------------------------------------------------------
-# season view: Apr-Sep pods (survey ahead of the harvest) vs the Oct-Mar arrivals that follow
-# ---------------------------------------------------------------------------------------------
-def season_table(p: pd.DataFrame, arr: pd.Series, est: pd.Series, implied) -> str:
-    rows = []
-    first = arr.dropna().index.min()
-    years = sorted({d.year for d in p.index})
-    years = [y for y in years if pd.Timestamp(y + 1, 3, 1) >= first]
-    last_year = years[-1] if years else None
-    ratios = []
-    for y in years:
-        pw = p.pods[(p.index >= pd.Timestamp(y, 4, 1)) & (p.index <= pd.Timestamp(y, 9, 1))]
-        win = pd.date_range(pd.Timestamp(y, 10, 1), pd.Timestamp(y + 1, 3, 1), freq="MS")
-        act = arr.reindex(win)
-        full = act.notna().all()
-        a_sum = act.sum() if full else np.nan
-        e_sum = est.reindex(win).sum(min_count=1) if est is not None and len(est) else np.nan
-        i_sum = implied.reindex(win).sum(min_count=1) if implied is not None else np.nan
-        i_n = int(implied.reindex(win).notna().sum()) if implied is not None else 0
-        ratio = a_sum / pw.mean() if full and len(pw) else np.nan
-        if pd.notna(ratio):
-            ratios.append(ratio)
-        rows.append((f"{y % 100:02d}/{(y + 1) % 100:02d}", pw.mean() if len(pw) else np.nan, len(pw), pw.max() if len(pw) else np.nan,
-                     a_sum, ratio, e_sum, i_sum, i_n))
-    avg_ratio = np.mean(ratios) if ratios else np.nan
-    f = lambda v, d=0: "-" if v is None or pd.isna(v) else f"{v:,.{d}f}"
-    head = ("<tr><th>Season</th><th>Apr-Sep pod load<br>(avg, months)</th><th>Peak pod load</th><th>Oct-Mar arrivals<br>actual, kt</th>"
-            "<th>kt per pod</th><th>Ratio-implied<br>Oct-Mar, kt</th><th>Model-implied<br>Oct-Mar, kt</th><th>Forestero estimate<br>Oct-Mar, kt</th></tr>")
-    body = ""
-    for cy, pm, n, pk, a, r, e, i, i_n in rows:
-        latest = cy == rows[-1][0]
-        r_imp = pm * avg_ratio if latest and pd.isna(a) and pd.notna(pm) and pd.notna(avg_ratio) else np.nan
-        i_txt = f"{f(i)} <span style='color:#7a86a8'>({i_n}/6 mo)</span>" if latest and pd.isna(a) and i_n else "-"
-        body += (f"<tr><td class='cy'>{cy}</td><td>{f(pm, 1)} <span style='color:#7a86a8'>({n})</span></td><td>{f(pk, 1)}</td>"
-                 f"<td class='tot'>{f(a)}</td><td>{f(r, 1)}</td><td>{f(r_imp)}</td><td>{i_txt}</td><td>{f(e) if latest and pd.isna(a) else '-'}</td></tr>")
-    return (monthly.CSS + f"<div class='mt-wrap' style='display:inline-block;max-width:100%'><table class='mt' style='width:auto'>{head}{body}"
-            f"</table></div>")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -223,25 +187,19 @@ def render():
         implied = imp[imp.index > arr.index.max()].dropna()
     with c[3]:
         if res:
-            st.markdown(f"<div class='card-desc' style='margin:0'>arrivals = {a:,.0f} + {b:,.1f} x pod load (t-{lag}) &middot; "
-                        f"R&sup2; {r2:.2f} &middot; {n} months</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card-desc' style='margin:0'>R&sup2; {r2:.2f} &middot; {n} months</div>", unsafe_allow_html=True)
 
     name = "Ivory Coast"
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>{name}: pods per tree (top) and arrivals (bottom)</div>"
-                    "<div class='card-desc'>Shaded = Oct-Mar main-crop harvest. Hatched = arrivals implied by the pod load "
-                    f"{lag} months earlier, for months not reported yet.</div>", unsafe_allow_html=True)
+                    "<div class='card-desc'>Shaded: Oct-Mar harvest. Hatched: pod-implied.</div>", unsafe_allow_html=True)
         st.plotly_chart(combined_chart(p, arr, est, implied, est_label, lag), width="stretch")
     left, right = st.columns(2)
     with left, st.container(border=True):
         st.markdown("<div class='card-title'>How far do pods lead arrivals?</div>"
-                    "<div class='card-desc'>Correlation of monthly arrivals with the pod count k months earlier. "
-                    f"Few seasons on file, so read it as a guide.</div>", unsafe_allow_html=True)
+                    "<div class='card-desc'>Tallest bar = best lag. Label = R&sup2;.</div>", unsafe_allow_html=True)
         st.plotly_chart(lag_chart(lt, best), width="stretch")
     with right, st.container(border=True):
         st.markdown(f"<div class='card-title'>Pods {lag} months earlier vs arrivals</div>"
-                    "<div class='card-desc'>One dot per month, coloured by season; dashed = the fitted line.</div>", unsafe_allow_html=True)
+                    "<div class='card-desc'>One dot per month.</div>", unsafe_allow_html=True)
         st.plotly_chart(scatter_chart(p.pods, arr, lag, res), width="stretch")
-    with st.container(border=True):
-        st.markdown("<div class='card-title'>Season view: survey ahead of the harvest</div>", unsafe_allow_html=True)
-        st.markdown(season_table(p, arr, est if not source.startswith("ETG") else None, implied), unsafe_allow_html=True)

@@ -31,6 +31,7 @@ CSS = """
          font-variant-numeric: tabular-nums; }
 .pj td.wk { text-align: center; background: #f6f7fb; font-weight: 600; position: sticky; left: 0; z-index: 1; }
 .pj td.tot { font-weight: 700; border-left: 1px solid #dfe3ee; }
+.pj td.mk { background: #fff1cf; }
 .pj td.est { font-style: italic; color: #6f7895; }
 .pj td.est.tot { color: #0a2463; }
 .pj td.na { color: #b8bfd2; }
@@ -105,7 +106,7 @@ def _fmt(v):
     return "-" if v is None or np.isnan(v) else f"{v:,.0f}"
 
 
-def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False) -> str:
+def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: frozenset = frozenset()) -> str:
     ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
     all_w = ab.index.union(sp.index)
     comb_all = ab["total"].reindex(all_w) + sp["total"].reindex(all_w)
@@ -119,7 +120,7 @@ def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False) -> str:
     h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + "<th>Total</th><th>WoW</th></tr>"
     rows = []
     for w in weeks:
-        tds = [f"<td class='wk'>{w:%d-%b-%y}</td>"]
+        tds = [f"<td class='wk{' mk' if w in mark else ''}'>{w:%d-%b-%y}</td>"]
         for p, t in (("Abidjan", ab), ("San Pedro", sp)):
             r = t.loc[w] if w in t.index else None
             for day in DAYS:
@@ -272,6 +273,7 @@ def save_changes(changes: dict):
 
 
 def render_entry(data: dict):
+    """Returns (projected data, edited weeks) after Project, else None."""
     raw = load()
     weeks, orig = week_grids(raw)
     ver = st.session_state.get("pj_ver", 0)
@@ -303,17 +305,15 @@ def render_entry(data: dict):
         do_save = b[1].button("Save", width="stretch", disabled=not (changes and override))
         if do_project:
             st.session_state["pj_show"] = True
+        shown = None
         if st.session_state.get("pj_show"):
-            pdata = preview_data(raw, changes)
-            partial = [w for w in weeks if any(bool(t.set_index("week").loc[w, "projected"]) for t in pdata.values()
-                                              if w in set(t.week))]
-            show = [w for w in partial if w in set(pdata["Abidjan"].week) | set(pdata["San Pedro"].week)]
-            if show:
-                st.markdown(CSS + table_html(pdata, pd.DatetimeIndex(sorted(show, reverse=True))), unsafe_allow_html=True)
-                st.markdown("<div class='pj-note'>Hatched italic = projected from the share those days normally make of the week "
-                            "(complete weeks before it). Not saved until you press Save.</div>", unsafe_allow_html=True)
+            if changes:
+                shown = (preview_data(raw, changes), frozenset(changes))
+                st.markdown("<div class='pj-note'>History below now shows what you typed (highlighted weeks), with the days not "
+                            "reported filled in by the projection. Not saved until you press Save.</div>", unsafe_allow_html=True)
             else:
-                st.caption("Nothing to project: every week in the grid is complete or empty.")
+                st.markdown("<div class='pj-note'>Nothing changed in the grid - History below already shows the projection "
+                            "for incomplete weeks.</div>", unsafe_allow_html=True)
         if do_save:
             try:
                 save_changes(changes)
@@ -331,6 +331,7 @@ def render_entry(data: dict):
                                     unsafe_allow_html=True)
                 except gh.GitHubError as ex:
                     st.caption(str(ex))
+    return shown
 
 
 PORT_COL = {"Abidjan": "#1f8a9c", "San Pedro": "#0a2463"}
@@ -393,15 +394,15 @@ def render_accuracy(data: dict):
                     unsafe_allow_html=True)
 
 
-def render_history(data: dict):
+def render_history(data: dict, mark: frozenset = frozenset()):
     allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week), reverse=True)
     with st.container(border=True):
         st.markdown("<div class='card-title'>History</div><div class='card-desc'>Every week on file, newest first (tonnes). "
                     "Hatched italic = not reported, projected; <b>P</b> = projected total.</div>", unsafe_allow_html=True)
-        st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True), unsafe_allow_html=True)
+        st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True, mark=mark), unsafe_allow_html=True)
 
 
 def render_week():
     data = build()
-    render_entry(data)
-    render_history(data)
+    shown = render_entry(data)
+    render_history(*(shown if shown else (data, frozenset())))

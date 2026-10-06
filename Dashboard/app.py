@@ -37,7 +37,7 @@ import projection
 import season
 
 ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
-PAGES = {"IVC": ["This week", "Season", "Monthly", "Accuracy"], "Ghana": ["Monthly"], monthly.COMBINED: ["Monthly"]}
+PAGES = {"IVC": ["This week", "Weekly Arrivals", "Monthly", "Accuracy"], "Ghana": ["Monthly"], monthly.COMBINED: ["Monthly"]}
 
 with st.container(key="main"):
     origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
@@ -47,7 +47,7 @@ with st.container(key="nav"):
 
 if page == "This week":
     projection.render_week()
-elif page == "Season":
+elif page == "Weekly Arrivals":
     season.render("IVC")
 elif page == "Accuracy":
     projection.render_accuracy(projection.build())

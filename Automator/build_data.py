@@ -15,9 +15,9 @@ SRC = DB / "Mannual.xlsx"
 tmp = Path(tempfile.gettempdir()) / "cocoa_arrivals_src.xlsx"
 shutil.copy(SRC, tmp)
 
-# Weekly: header has two columns both called "Eikon (25/26)" -> read by position.
+# Weekly: columns are Week Number, Eikon (24/25), Eikon (25/26), ETG (24/25), ETG (25/26) -> read by position.
 w = pd.read_excel(tmp, sheet_name="Weekly", header=0)
-w.columns = ["week", "eikon_raw_2526", "eikon_adj_2526", "etg_2425", "etg_2526"]
+w.columns = ["week", "eikon_2425", "eikon_2526", "etg_2425", "etg_2526"]
 w = w.apply(pd.to_numeric, errors="coerce")             # '#N/A' -> NaN
 w = w.dropna(subset=["week"]).astype({"week": int})
 w.to_csv(DB / "weekly.csv", index=False)
@@ -31,17 +31,7 @@ for sheet, origin in [("IVC Monthly", "IVC"), ("Ghana Monthly", "Ghana")]:
     rows.append(long.rename(columns={"Month": "month", "Type": "type"}))
 pd.concat(rows).to_csv(DB / "monthly.csv", index=False)
 
-# IVC Projection: Abidjan (cols B-G) and San Pedro (cols I-N), Monday-Saturday tonnes per week. Only the raw days are
-# kept - the Total / Combined columns in the sheet are projections pasted as values, the dashboard recomputes them.
-pr = pd.read_excel(tmp, sheet_name="IVC Projection", header=None, skiprows=2)
-DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-parts = []
-for port, c0 in [("Abidjan", 1), ("San Pedro", 8)]:
-    p_ = pr.iloc[:, [0] + list(range(c0, c0 + 6))].copy()
-    p_.columns = ["week"] + DAYS
-    p_["week"] = pd.to_datetime(p_["week"], errors="coerce")
-    p_.insert(0, "port", port)
-    parts.append(p_.dropna(subset=["week"]))
-pd.concat(parts).to_csv(DB / "ivc_projection.csv", index=False, date_format="%Y-%m-%d")
+# NOTE: Database/ivc_projection.csv is NOT built here any more. The dashboard (This week tab) owns it - entries are saved
+# straight into that file - so re-running this script must never overwrite it from the old "IVC Projection" sheet.
 
 print(f"weekly.csv: {len(w)} rows | monthly.csv: {sum(len(r) for r in rows)} rows")

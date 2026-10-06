@@ -11,10 +11,10 @@ WEEKS_IN_MONTH = [4] * 12                               # every month = 4 weeks 
 # (label, column, colour, dash, width) - same look as the desk Excel
 SERIES = [
     ("ETG (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5),
-    ("Adj Eikon (25/26)", "eikon_adj_2526", "#c00000", "solid", 2.5),
+    ("Eikon (24/25)", "eikon_2425", "#843c0c", "dot", 2.5),
+    ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5),
     ("ETG (25/26)", "etg_2526", "#2e75b6", "solid", 2.5),
     ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5),
-    ("Raw Eikon (25/26)", "eikon_raw_2526", "#843c0c", "dot", 2.5),
     ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5),
 ]
 
@@ -114,7 +114,7 @@ def render(origin: str = "IVC"):
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Weekly arrivals 25/26 {origin}</div>"
                     "<div class='card-desc'>Forestero lines are the monthly figure divided over that month's weeks "
-                    "(every month is treated as 4 weeks, so the line covers weeks 1-48). Adj Eikon is the Eikon feed after the desk adjustment.</div>",
+                    "(every month is treated as 4 weeks, so the line covers weeks 1-48).</div>",
                     unsafe_allow_html=True)
         st.plotly_chart(chart(df, False, 430), width="stretch")
     with st.container(border=True):

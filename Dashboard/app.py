@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="Cocoa Arrivals", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Cocoa Fundamentals", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown(
     """
@@ -44,6 +44,22 @@ div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownConta
 .st-key-nav_pod div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { border-bottom-color: #e8913f !important; }
 .st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { background: #f6c99e !important; }
 .st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #7a3b08 !important; }
+/* sidebar */
+[data-testid="stSidebar"] { background: linear-gradient(180deg, #0a2463 0%, #13306f 100%) !important; border-right: none !important; }
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding-top: 1.2rem; }
+.sb-brand { color: #ffffff; font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em; margin: 0 0 2px 4px; }
+.sb-caption { color: rgba(255,255,255,0.55); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 18px 4px; }
+.st-key-section div[role="radiogroup"] { display: flex; flex-direction: column; width: 100%; background: transparent; padding: 0; gap: 6px; align-items: stretch; border-radius: 0; }
+.st-key-section, .st-key-section [data-testid="stElementContainer"], .st-key-section [data-testid="stRadio"], .st-key-section [data-testid="stRadio"] > div { width: 100% !important; }
+.st-key-section div[role="radiogroup"] > label { display: flex !important; width: 100% !important; box-sizing: border-box; }
+.st-key-section div[role="radiogroup"] label { width: 100%; border-radius: 10px !important; padding: 11px 14px !important;
+    border-left: 3px solid transparent; transition: background .15s; }
+.st-key-section div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 15px !important; font-weight: 600;
+    color: rgba(255,255,255,0.72) !important; }
+.st-key-section div[role="radiogroup"] label:hover { background: rgba(255,255,255,0.08) !important; }
+.st-key-section div[role="radiogroup"] label:has(input:checked) { background: #ffffff !important; border-left: 3px solid #e8913f;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
+.st-key-section div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
 .card-desc { color: #5a6688; font-size: 0.82rem; margin-top: -6px; margin-bottom: 10px; }
 .page-title { color: #0a2463; font-weight: 700; font-size: 1.25rem; margin: 0 0 6px 0; }
 .card-title { color: #0a2463; font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
@@ -59,26 +75,36 @@ import monthly
 import projection
 import season
 
-ORIGINS = ["IVC", "Ghana", monthly.COMBINED, "Pod Counts"]
-PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"], monthly.COMBINED: ["Forestero : Monthly"], "Pod Counts": ["Overview", "Entry Table"]}
+ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
+PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"],
+         monthly.COMBINED: ["Forestero : Monthly"]}
+
+with st.sidebar:
+    st.markdown("<div class='sb-brand'>Cocoa Fundamentals</div><div class='sb-caption'>Ivory Coast &middot; Ghana</div>",
+                unsafe_allow_html=True)
+    with st.container(key="section"):
+        section = st.radio("Section", ["Arrivals", "Pod Counts"], label_visibility="collapsed", key="section_pick")
 
 head_l, head_r = st.columns([4, 3], vertical_alignment="center")
-with head_r, st.container(key="main"):
-    origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
 with head_l:
-    st.markdown(f"<div class='app-title'>Cocoa Arrivals</div>", unsafe_allow_html=True)
-with st.container(key={"IVC": "nav_ivc", "Pod Counts": "nav_pod"}.get(origin, "nav")):
-    page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
+    st.markdown(f"<div class='app-title'>Cocoa {section}</div>", unsafe_allow_html=True)
 
-if page == "This week":
-    projection.render_week()
-elif page == "Weekly Arrivals":
-    season.render("IVC")
-elif origin == "Pod Counts":
+if section == "Arrivals":
+    with head_r, st.container(key="main"):
+        origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
+    with st.container(key="nav_ivc" if origin == "IVC" else "nav"):
+        page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
+    if page == "This week":
+        projection.render_week()
+    elif page == "Weekly Arrivals":
+        season.render("IVC")
+    else:
+        monthly.render(origin)
+else:
     import pod_view
+    with st.container(key="nav_pod"):
+        page = st.radio("Page", ["Overview", "Entry Table"], horizontal=True, label_visibility="collapsed", key="page_pod")
     if page == "Entry Table":
         pod_view.render_entry()
     else:
         pod_view.render_overview()
-else:
-    monthly.render(origin)

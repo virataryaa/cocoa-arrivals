@@ -382,7 +382,7 @@ def render_entry(data: dict):
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
         for n in notes:
             st.warning(n)
-        b = st.columns([1.3, 0.85, 1.75, 0.75, 2.6, 0.9], vertical_alignment="center")
+        b = st.columns([1.3, 0.85, 1.75, 0.75, 1.8, 1.2], vertical_alignment="center")
         go_ = b[0].button("Project & Save", type="primary", width="stretch", disabled=not (changes and override and entry_enabled()))
         b[1].markdown("<div style='font-size:12px;color:#5a6688;text-align:right'>Projection uses</div>", unsafe_allow_html=True)
         with b[2]:

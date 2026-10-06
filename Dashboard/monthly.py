@@ -244,7 +244,11 @@ def render_edit(origin: str):
         for n in notes:
             st.warning(n)
         c = st.columns([1, 6])
-        if c[0].button("Save", type="primary", width="stretch", disabled=not (changes and override), key=f"mo_save_{origin}"):
+        if not projection.entry_enabled():
+            c[1].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Save is off: add github_token in Streamlit Secrets "
+                          "(without it nothing is stored).</div>", unsafe_allow_html=True)
+        if c[0].button("Save", type="primary", width="stretch", disabled=not (changes and override and projection.entry_enabled()),
+                       key=f"mo_save_{origin}"):
             try:
                 save_monthly(origin, changes)
             except gh.GitHubError as ex:

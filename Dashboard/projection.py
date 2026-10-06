@@ -367,7 +367,10 @@ def render_entry(data: dict):
             st.warning(n)
         b = st.columns([1, 1, 6])
         do_project = b[0].button("Project", type="primary", width="stretch")
-        do_save = b[1].button("Save", width="stretch", disabled=not (changes and override))
+        do_save = b[1].button("Save", width="stretch", disabled=not (changes and override and entry_enabled()))
+        if not entry_enabled():
+            b[2].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Save is off: add github_token in Streamlit Secrets "
+                          "(without it nothing is stored).</div>", unsafe_allow_html=True)
         if do_project:
             st.session_state["pj_show"] = True
         shown = None

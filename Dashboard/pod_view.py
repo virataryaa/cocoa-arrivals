@@ -170,18 +170,21 @@ def _pod_csv(frame: pd.DataFrame) -> str:
     return frame[["Month", "Year", "NUMBER", "CLASS", "REGION", "COUNTRY"]].to_csv(index=False, lineterminator="\n")
 
 
-def save_pod(country: str, changes: dict):
-    msg = f"Pod counts {country}: " + "; ".join(
-        f"{MON[m - 1]}-{y} {SHORT[c]} {'cleared' if v is None else f'{v:g}'}" for (y, m, c), v in changes.items())
+def save_pod(changes: dict):
+    """changes = {country: {(year, month, class): value or None}} - one commit for both countries."""
+    msg = "Pod counts " + " | ".join(f"{k}: " + "; ".join(
+        f"{MON[m - 1]}-{y} {SHORT[c]} {'cleared' if v is None else f'{v:g}'}" for (y, m, c), v in ch.items())
+        for k, ch in changes.items() if ch)
 
     def change(text):
         frame = pd.read_csv(io.StringIO(text))
-        for (y, m, c), v in changes.items():
-            hit = (frame.COUNTRY == country) & (frame.Year == y) & (frame.Month == m) & (frame.CLASS == c)
-            frame = frame[~hit]
-            if v is not None:
-                frame = pd.concat([frame, pd.DataFrame([{"Month": m, "Year": y, "NUMBER": v, "CLASS": c, "REGION": "ALL",
-                                                         "COUNTRY": country}])], ignore_index=True)
+        for country, ch in changes.items():
+            for (y, m, c), v in ch.items():
+                hit = (frame.COUNTRY == country) & (frame.Year == y) & (frame.Month == m) & (frame.CLASS == c)
+                frame = frame[~hit]
+                if v is not None:
+                    frame = pd.concat([frame, pd.DataFrame([{"Month": m, "Year": y, "NUMBER": v, "CLASS": c, "REGION": "ALL",
+                                                             "COUNTRY": country}])], ignore_index=True)
         return _pod_csv(frame), None
 
     new_text, _ = gh.commit(POD_PATH, change, msg)
@@ -189,34 +192,41 @@ def save_pod(country: str, changes: dict):
     load_raw.clear()
 
 
+ENTRY_ORDER = ["IVC", "GH"]                              # IVC on top, Ghana underneath
+
+
 def render_entry():
     raw = _raw_file()
-    top = st.columns([1.2, 6], vertical_alignment="center")
-    with top[0]:
-        country = st.radio("Country", COUNTRIES, horizontal=True, label_visibility="collapsed", key="pod_entry_country")
-    months, orig = entry_grid(raw, country)
     ver = st.session_state.get("pod_ver", 0)
+    cfg = {"_index": st.column_config.Column("Month", width=78)}
+    cfg.update({c: st.column_config.TextColumn(SHORT[c], width=74) for c in ENTRY_CLASSES})
+    changes, bad, notes = {}, [], []
     with st.container(border=True):
-        st.markdown(f"<div class='card-title'>Enter pod counts - {country}</div><div class='card-desc'>Blank = not surveyed. "
-                    "Top row is the coming month.</div>", unsafe_allow_html=True)
-        cfg = {"_index": st.column_config.Column("Month", width=78)}
-        cfg.update({c: st.column_config.TextColumn(SHORT[c], width=74) for c in ENTRY_CLASSES})
-        typed = st.data_editor(_as_text(orig), key=f"pod_ed_{country}_{ver}", width="content", row_height=26,
-                               height=26 * (len(orig) + 1) + 16, column_config=cfg)
-        bad = []
-        new = _to_number(typed, orig, bad)
-        changes = _changes(months, orig, new)
+        st.markdown("<div class='card-title'>Enter pod counts</div><div class='card-desc'>Blank = not surveyed. "
+                    "Top row of each table is the coming month.</div>", unsafe_allow_html=True)
+        for country in ENTRY_ORDER:
+            months, orig = entry_grid(raw, country)
+            name = "Ivory Coast (IVC)" if country == "IVC" else "Ghana (GH)"
+            st.markdown(f"<div style='background:#0a2463;color:#fff;font-weight:600;font-size:12px;text-align:center;padding:2px 0;"
+                        f"border-radius:6px 6px 0 0;width:{78 + 74 * len(ENTRY_CLASSES) + 2}px;margin-top:6px'>{name}</div>",
+                        unsafe_allow_html=True)
+            typed = st.data_editor(_as_text(orig), key=f"pod_ed_{country}_{ver}", width="content", row_height=26,
+                                   height=26 * (len(orig) + 1) + 16, column_config=cfg)
+            new = _to_number(typed, orig, bad)
+            changes[country] = _changes(months, orig, new)
+            if changes[country]:
+                notes += [f"{country} {n}" for n in _notes(raw, country, months, new)]
+        n_changed = sum(len(c) for c in changes.values())
         for n in bad:
             st.error(n)
-        notes = _notes(raw, country, months, new) if changes else []
         override = st.checkbox("Override warnings", key="pod_override") if notes else True
         for n in notes:
             st.warning(n)
         b = st.columns([1.3, 6])
         ok = projection.entry_enabled()
-        if b[0].button("Save", type="primary", width="stretch", disabled=not (changes and override and ok), key="pod_save"):
+        if b[0].button("Save", type="primary", width="stretch", disabled=not (n_changed and override and ok), key="pod_save"):
             try:
-                save_pod(country, changes)
+                save_pod(changes)
             except gh.GitHubError as ex:
                 st.error(str(ex))
             else:
@@ -225,6 +235,6 @@ def render_entry():
         if not ok:
             b[1].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Saving is off: add github_token in Streamlit Secrets "
                           "(without it nothing is stored).</div>", unsafe_allow_html=True)
-        elif changes:
-            b[1].markdown(f"<div class='card-desc' style='margin-top:8px'>{len(changes)} cell(s) changed, not saved yet.</div>",
+        elif n_changed:
+            b[1].markdown(f"<div class='card-desc' style='margin-top:8px'>{n_changed} cell(s) changed, not saved yet.</div>",
                           unsafe_allow_html=True)

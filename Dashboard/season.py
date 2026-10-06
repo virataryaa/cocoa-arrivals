@@ -11,15 +11,16 @@ DB = Path(__file__).resolve().parent.parent / "Database"
 CROP_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
 WEEKS_IN_MONTH = [4] * 12                               # every month = 4 weeks -> weeks 1-48; weeks 49-51 have no Forestero value
 # (label, column, colour, dash, width) - same look as the desk Excel
+# (label, column, colour, dash, width, shown) - shown=False starts hidden; a click on its legend entry brings it back
 SERIES = [
-    ("ETG (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5),
-    ("Eikon (24/25)", "eikon_2425", "#843c0c", "dot", 2.5),
-    ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5),
-    ("ETG (25/26)", "etg_2526", "#2e75b6", "solid", 2.5),
-    ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5),
-    ("ETG (26/27)", "etg_2627", "#0a2463", "solid", 3.5),
-    ("Eikon (26/27)", "eikon_2627", "#e07b39", "solid", 3),
-    ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5),
+    ("ETG (26/27)", "etg_2627", "#0a2463", "solid", 3.5, True),
+    ("Eikon (26/27)", "eikon_2627", "#e07b39", "solid", 3, True),
+    ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5, True),
+    ("ETG (25/26)", "etg_2526", "#2e75b6", "solid", 2.5, True),
+    ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5, False),
+    ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5, False),
+    ("ETG (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5, False),
+    ("Eikon (24/25)", "eikon_2425", "#843c0c", "dot", 2.5, False),
 ]
 
 
@@ -42,13 +43,13 @@ def forestero_weekly(monthly: pd.DataFrame, origin: str, typ: str, crop_year: st
 
 def chart(df: pd.DataFrame, cumulative: bool, height: int):
     fig = go.Figure()
-    for label, col, colour, dash, width in SERIES:
+    for label, col, colour, dash, width, shown in SERIES:
         if col not in df or df[col].notna().sum() == 0:
             continue
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
         fig.add_scatter(x=df.week, y=y, name=label, mode="lines", connectgaps=False,
                         line=dict(color=colour, dash=dash, width=width, shape="hv" if (dash == "dash" and not cumulative) else "linear"),
-                        hovertemplate="%{y:,.0f}")
+                        hovertemplate="%{y:,.0f}", visible=True if shown else "legendonly")
     if "etg_2627_proj" in df and df["etg_2627_proj"].any():          # the running week: projected, not final
         y = df["etg_2627"].cumsum(skipna=True).where(df["etg_2627"].notna()) if cumulative else df["etg_2627"]
         m = df["etg_2627_proj"]

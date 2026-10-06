@@ -83,11 +83,11 @@ with st.sidebar:
     st.markdown("<div class='sb-brand'>Cocoa Fundamentals</div><div class='sb-caption'>Ivory Coast &middot; Ghana</div>",
                 unsafe_allow_html=True)
     with st.container(key="section"):
-        section = st.radio("Section", ["Arrivals", "Pod Counts"], label_visibility="collapsed", key="section_pick")
+        section = st.radio("Section", ["Arrivals", "Pod Counts", "Study"], label_visibility="collapsed", key="section_pick")
 
 head_l, head_r = st.columns([4, 3], vertical_alignment="center")
 with head_l:
-    st.markdown(f"<div class='app-title'>Cocoa {section}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='app-title'>{'Pods vs Arrivals' if section == 'Study' else 'Cocoa ' + section}</div>", unsafe_allow_html=True)
 
 if section == "Arrivals":
     with head_r, st.container(key="main"):
@@ -100,6 +100,9 @@ if section == "Arrivals":
         season.render("IVC")
     else:
         monthly.render(origin)
+elif section == "Study":
+    import study
+    study.render()
 else:
     import pod_view
     with st.container(key="nav_pod"):

@@ -9,18 +9,33 @@ st.markdown(
 [data-testid="stHeader"] { background: #fafafa !important; }
 h1, h2, h3, h4, h5, h6 { color: #0a2463 !important; }
 body, .main { color: #1a1a2e; }
-.block-container { padding-top: 2.2rem; }
+.block-container { padding-top: 3.2rem; }
 div[role="radiogroup"] { background: #eef0f6; padding: 4px; border-radius: 999px; gap: 2px; display: inline-flex; flex-wrap: wrap; }
 div[role="radiogroup"] label { background: transparent !important; border-radius: 999px !important; padding: 4px 12px !important; margin: 0 !important; }
 div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child { display: none; }
 div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 12px !important; color: #5a6688; }
 div[role="radiogroup"] label:has(input:checked) { background: #0a2463 !important; }
 div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #ffffff !important; font-weight: 600; }
-.st-key-main div[role="radiogroup"] { background: transparent; border-bottom: 2px solid #dfe3ee; border-radius: 0; padding: 0; gap: 6px; display: flex; width: 100%; }
-.st-key-main div[role="radiogroup"] label { background: transparent !important; border-radius: 0 !important; padding: 8px 16px !important; margin-bottom: -2px !important; border-bottom: 3px solid transparent; }
-.st-key-main div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 17px !important; font-weight: 700; color: #7a86a8 !important; }
-.st-key-main div[role="radiogroup"] label:has(input:checked) { background: transparent !important; border-bottom: 3px solid #0a2463 !important; }
-.st-key-main div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; }
+/* header */
+.app-title { color: #0a2463; font-weight: 800; font-size: 1.55rem; letter-spacing: -0.01em; line-height: 1.1; }
+.app-sub { color: #7a86a8; font-size: 0.8rem; margin-top: 2px; }
+/* origin: segmented control */
+.st-key-main, .st-key-main [data-testid="stRadio"], .st-key-main [data-testid="stRadio"] > div { width: 100% !important; display: flex; justify-content: flex-end; }
+.st-key-main div[role="radiogroup"] { background: #e9ecf4; padding: 4px; border-radius: 12px; gap: 4px; box-shadow: inset 0 1px 2px rgba(10,36,99,0.06); }
+.st-key-main div[role="radiogroup"] label { border-radius: 9px !important; padding: 7px 20px !important; transition: background .15s; }
+.st-key-main div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 14px !important; font-weight: 600; color: #5a6688 !important; }
+.st-key-main div[role="radiogroup"] label:hover { background: rgba(255,255,255,0.6) !important; }
+.st-key-main div[role="radiogroup"] label:has(input:checked) { background: #ffffff !important; box-shadow: 0 1px 4px rgba(10,36,99,0.18); }
+.st-key-main div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
+/* pages: underlined tab strip */
+.st-key-nav div[role="radiogroup"] { background: transparent; padding: 0; border-radius: 0; gap: 26px; display: flex; width: 100%;
+    border-bottom: 1px solid #e3e7f0; margin-bottom: 6px; }
+.st-key-nav div[role="radiogroup"] label { border-radius: 0 !important; padding: 8px 2px !important; margin-bottom: -1px !important;
+    border-bottom: 2.5px solid transparent; }
+.st-key-nav div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 14.5px !important; font-weight: 500; color: #7a86a8 !important; }
+.st-key-nav div[role="radiogroup"] label:hover div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; }
+.st-key-nav div[role="radiogroup"] label:has(input:checked) { background: transparent !important; border-bottom: 2.5px solid #1f8a9c !important; }
+.st-key-nav div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
 .card-desc { color: #5a6688; font-size: 0.82rem; margin-top: -6px; margin-bottom: 10px; }
 .page-title { color: #0a2463; font-weight: 700; font-size: 1.25rem; margin: 0 0 6px 0; }
 .card-title { color: #0a2463; font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
@@ -39,9 +54,14 @@ import season
 ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
 PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"], monthly.COMBINED: ["Forestero : Monthly"]}
 
-with st.container(key="main"):
+SUB = {"IVC": "Ivory Coast port arrivals - Abidjan + San Pedro, Eikon, Forestero",
+       "Ghana": "Ghana arrivals - Forestero monthly",
+       monthly.COMBINED: "Ivory Coast + Ghana - Forestero monthly combined"}
+head_l, head_r = st.columns([5, 2], vertical_alignment="center")
+with head_r, st.container(key="main"):
     origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
-st.markdown(f"<div class='page-title'>Cocoa arrivals - {origin}</div>", unsafe_allow_html=True)
+with head_l:
+    st.markdown(f"<div class='app-title'>Cocoa Arrivals</div><div class='app-sub'>{SUB[origin]}</div>", unsafe_allow_html=True)
 with st.container(key="nav"):
     page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
 

@@ -250,7 +250,7 @@ def week_grid(raw: pd.DataFrame, eik: pd.Series):
 
 def as_text(grid: pd.DataFrame) -> pd.DataFrame:
     """Numbers as plain text, empty cell = '' (a number column would show None)."""
-    return grid.apply(lambda col: col.map(lambda v: "" if pd.isna(v) else f"{v:.0f}" if float(v).is_integer() else f"{v}"))
+    return grid.apply(lambda col: col.map(lambda v: "" if pd.isna(v) else f"{v:,.0f}" if float(v).is_integer() else f"{v:,}"))
 
 
 def to_number(grid: pd.DataFrame, orig: pd.DataFrame, bad: list) -> pd.DataFrame:
@@ -361,17 +361,6 @@ def render_entry(data: dict):
     ver = st.session_state.get("pj_ver", 0)
     with st.container(border=True):
         st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Blank = not reported, 0 = no arrivals.</div>", unsafe_allow_html=True)
-        pm = st.columns([1.9, 1.1, 5], vertical_alignment="center")
-        with pm[0]:
-            opts = ["All weeks", "Recent weeks"]
-            mode = st.radio("Projection history", opts, horizontal=True, key="pj_mode",
-                            index=opts.index(st.session_state.get("_pj_mode", "All weeks")),
-                            help="Which complete weeks set the day-of-week shares used to project unfinished weeks.")
-        st.session_state["_pj_mode"] = mode
-        if mode == "Recent weeks":
-            with pm[1]:
-                st.session_state["_pj_n"] = st.number_input("Last N weeks", min_value=4, max_value=150, step=1, key="pj_n",
-                                                            value=int(st.session_state.get("_pj_n", 12)))
         st.markdown(
             "<div style='display:flex;font-size:12px;font-weight:600;color:#fff;text-align:center;margin-bottom:1px'>"
             f"<div style='width:{W_WEEK}px'></div>"
@@ -393,10 +382,30 @@ def render_entry(data: dict):
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
         for n in notes:
             st.warning(n)
-        b = st.columns([1.3, 6])
+        b = st.columns([1.3, 0.85, 1.75, 0.75, 2.6, 0.9], vertical_alignment="center")
         go_ = b[0].button("Project & Save", type="primary", width="stretch", disabled=not (changes and override and entry_enabled()))
+        b[1].markdown("<div style='font-size:12px;color:#5a6688;text-align:right'>Projection uses</div>", unsafe_allow_html=True)
+        with b[2]:
+            opts = ["All weeks", "Recent weeks"]
+            mode = st.radio("Projection history", opts, horizontal=True, key="pj_mode", label_visibility="collapsed",
+                            index=opts.index(st.session_state.get("_pj_mode", "All weeks")),
+                            help="Which complete weeks set the day-of-week shares used to project unfinished weeks.")
+        st.session_state["_pj_mode"] = mode
+        if mode == "Recent weeks":
+            with b[3]:
+                st.session_state["_pj_n"] = st.number_input("Last N weeks", min_value=4, max_value=150, step=1, key="pj_n",
+                                                            label_visibility="collapsed", help="Last N complete weeks",
+                                                            value=int(st.session_state.get("_pj_n", 12)))
+        if entry_enabled():
+            with b[5].popover("Save log", width="stretch"):
+                try:
+                    for ts, m in gh.history(REPO_PATH, 15):
+                        st.markdown(f"<div class='pj-note'>{ts[:16].replace('T', ' ')} UTC - {m.splitlines()[0]}</div>",
+                                    unsafe_allow_html=True)
+                except gh.GitHubError as ex:
+                    st.caption(str(ex))
         if not entry_enabled():
-            b[1].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Saving is off: add github_token in Streamlit Secrets "
+            b[4].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Saving is off: add github_token in Streamlit Secrets "
                           "(without it nothing is stored).</div>", unsafe_allow_html=True)
         shown = None
         if changes:                                       # live preview while typing: History below shows the grid as typed
@@ -413,14 +422,6 @@ def render_entry(data: dict):
                 st.rerun()
         if st.session_state.pop("pj_saved", None):
             st.success("Saved - History below shows the weeks with the projection.")
-        if entry_enabled():
-            with st.expander("Save history", expanded=False):
-                try:
-                    for ts, m in gh.history(REPO_PATH, 15):
-                        st.markdown(f"<div class='pj-note'>{ts[:16].replace('T', ' ')} UTC - {m.splitlines()[0]}</div>",
-                                    unsafe_allow_html=True)
-                except gh.GitHubError as ex:
-                    st.caption(str(ex))
     return shown
 
 

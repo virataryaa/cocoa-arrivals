@@ -27,14 +27,21 @@ div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownConta
 .st-key-main div[role="radiogroup"] label:has(input:checked) { background: #ffffff !important; box-shadow: 0 1px 4px rgba(10,36,99,0.18); }
 .st-key-main div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
 /* pages: underlined tab strip */
-.st-key-nav div[role="radiogroup"] { background: transparent; padding: 0; border-radius: 0; gap: 26px; display: flex; width: 100%;
+[class*='st-key-nav'] div[role="radiogroup"] { background: transparent; padding: 0; border-radius: 0; gap: 26px; display: flex; width: 100%;
     border-bottom: 1px solid #e3e7f0; margin-bottom: 6px; }
-.st-key-nav div[role="radiogroup"] label { border-radius: 0 !important; padding: 8px 2px !important; margin-bottom: -1px !important;
+[class*='st-key-nav'] div[role="radiogroup"] label { border-radius: 0 !important; padding: 8px 2px !important; margin-bottom: -1px !important;
     border-bottom: 2.5px solid transparent; }
-.st-key-nav div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 14.5px !important; font-weight: 500; color: #7a86a8 !important; }
-.st-key-nav div[role="radiogroup"] label:hover div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; }
-.st-key-nav div[role="radiogroup"] label:has(input:checked) { background: transparent !important; border-bottom: 2.5px solid #1f8a9c !important; }
-.st-key-nav div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
+[class*='st-key-nav'] div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 14.5px !important; font-weight: 500; color: #7a86a8 !important; }
+[class*='st-key-nav'] div[role="radiogroup"] label:hover div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; }
+[class*='st-key-nav'] div[role="radiogroup"] label:has(input:checked) { background: transparent !important; border-bottom: 2.5px solid #1f8a9c !important; }
+[class*='st-key-nav'] div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
+/* tabs that hold an entry grid: light orange (This week on IVC, Entry Table in Forestero : Monthly) */
+.st-key-nav_ivc div[role="radiogroup"] label:first-of-type div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
+.st-key-nav_ivc div[role="radiogroup"] label:first-of-type:has(input:checked) { border-bottom-color: #e8913f !important; }
+.st-key-nav_ivc div[role="radiogroup"] label:first-of-type:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #b8621a !important; }
+.st-key-moview div[role="radiogroup"] label:nth-of-type(2) div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
+.st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { background: #f6c99e !important; }
+.st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #7a3b08 !important; }
 .card-desc { color: #5a6688; font-size: 0.82rem; margin-top: -6px; margin-bottom: 10px; }
 .page-title { color: #0a2463; font-weight: 700; font-size: 1.25rem; margin: 0 0 6px 0; }
 .card-title { color: #0a2463; font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
@@ -58,7 +65,7 @@ with head_r, st.container(key="main"):
     origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
 with head_l:
     st.markdown(f"<div class='app-title'>Cocoa Arrivals</div>", unsafe_allow_html=True)
-with st.container(key="nav"):
+with st.container(key="nav_ivc" if origin == "IVC" else "nav"):
     page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
 
 if page == "This week":

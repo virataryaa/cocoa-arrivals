@@ -50,7 +50,6 @@ def table(origin: str, typ: str) -> pd.DataFrame:
 
 
 TYPES = ["Stat", "Tree"]
-DASH = {"Stat": "solid", "Tree": "dot"}
 
 
 def _layout(fig, height):
@@ -68,26 +67,23 @@ def years_of(origin: str) -> list:
     return sorted(set().union(*[t.index[t.notna().any(axis=1)] for t in tabs]))
 
 
-def line_chart(origin: str, cumulative: bool, last_n: int):
-    """Stat (solid) and Tree (dotted) together, one colour per crop year; a year's two lines toggle together in the legend."""
+def line_chart(origin: str, typ: str, cumulative: bool, last_n: int):
+    """One Forestero series (Stat or Tree), one line per crop year."""
     fig = go.Figure()
     years = years_of(origin)
     years = years[-last_n:] if last_n else years
-    for typ in TYPES:
-        t = table(origin, typ)
-        for i, cy in enumerate(years):
-            if cy not in t.index or t.loc[cy].isna().all():
-                continue
-            s = t.loc[cy]
-            y = s.cumsum(skipna=True).where(s.notna()) if cumulative else s
-            newest, prev = cy == years[-1], len(years) > 1 and cy == years[-2]
-            colour = CURRENT if newest else PREVIOUS if prev else OLD[i % len(OLD)]
-            fig.add_scatter(x=CROP_MONTHS, y=y, name=cy, legendgroup=cy, showlegend=typ == "Stat", mode="lines", connectgaps=False,
-                            line=dict(color=colour, dash=DASH[typ], width=3 if newest else 2 if prev else 1.4),
-                            hovertemplate=f"{cy} {typ}: %{{y:,.0f}}<extra></extra>")
-    for typ in TYPES:                                   # legend key for the line styles
-        fig.add_scatter(x=[None], y=[None], name=typ, mode="lines", line=dict(color="#5a6688", dash=DASH[typ], width=2))
-    return _layout(fig, 300)
+    t = table(origin, typ)
+    for i, cy in enumerate(years):
+        if cy not in t.index or t.loc[cy].isna().all():
+            continue
+        s = t.loc[cy]
+        y = s.cumsum(skipna=True).where(s.notna()) if cumulative else s
+        newest, prev = cy == years[-1], len(years) > 1 and cy == years[-2]
+        colour = CURRENT if newest else PREVIOUS if prev else OLD[i % len(OLD)]
+        fig.add_scatter(x=CROP_MONTHS, y=y, name=cy, mode="lines+markers" if newest else "lines", connectgaps=False,
+                        line=dict(color=colour, width=3 if newest else 2 if prev else 1.4), marker=dict(size=5),
+                        hovertemplate=f"{cy}: %{{y:,.0f}}<extra></extra>")
+    return _layout(fig, 270)
 
 
 def _cell(v, lo, hi):
@@ -226,14 +222,18 @@ def render_edit(origin: str):
     ver = st.session_state.get(f"mo_ver_{origin}", 0)
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Edit Forestero {origin}</div>", unsafe_allow_html=True)
-        cfg = {"Month": st.column_config.TextColumn("Month", width=60, disabled=True),
-               "Type": st.column_config.TextColumn("Type", width=56, disabled=True)}
-        cfg.update({cy: st.column_config.TextColumn(cy, width=64) for cy in years})
-        typed = st.data_editor(_as_text(orig), key=f"mo_ed_{origin}_{ver}", width="content", row_height=26, hide_index=True,
-                               height=26 * (len(orig) + 1) + 16, column_config=cfg)
-        bad = []
-        new = _parse(typed, orig, bad)
-        changes = _changes(orig, new)
+        cfg = {"Month": st.column_config.TextColumn("Month", width=56, disabled=True), "Type": None}   # Type column hidden
+        cfg.update({cy: st.column_config.TextColumn(cy, width=68) for cy in years})
+        bad, changes = [], {}
+        for col, typ in zip(st.columns(2), TYPES):       # Stat and Tree side by side
+            sub = orig[orig.Type == typ].reset_index(drop=True)
+            with col:
+                st.markdown(f"<div style='background:#0a2463;color:#fff;font-weight:600;font-size:12px;text-align:center;"
+                            f"padding:2px 0;border-radius:6px 6px 0 0;width:{56 + 68 * len(years) + 2}px'>{typ}</div>",
+                            unsafe_allow_html=True)
+                typed = st.data_editor(_as_text(sub), key=f"mo_ed_{origin}_{typ}_{ver}", width="content", row_height=26,
+                                       hide_index=True, height=26 * (len(sub) + 1) + 16, column_config=cfg)
+            changes.update(_changes(sub, _parse(typed, sub, bad)))
         for n in bad:
             st.error(n)
         vals = orig[years].to_numpy(float)
@@ -262,24 +262,23 @@ def render_edit(origin: str):
 
 
 def render(origin: str):
-    top = st.columns([1.8, 1.4, 5], vertical_alignment="center")
-    with top[0]:
-        view = st.radio("View", ["Charts", "Table"], horizontal=True, label_visibility="collapsed", key=f"mo_view_{origin}")
-    if view == "Charts":
-        with top[1]:
-            last_n = {"Last 5": 5, "All": 0}[st.radio("Years", ["Last 5", "All"], horizontal=True, label_visibility="collapsed", key=f"mo_n_{origin}")]
+    views = ["Overview"] + ([] if origin == COMBINED else ["Entry Table"])
+    top = st.columns([2.2, 1.4, 5], vertical_alignment="center")
+    with top[0], st.container(key="moview"):
+        view = st.radio("View", views, horizontal=True, label_visibility="collapsed", key=f"mo_view_{origin}")
+    if view == "Entry Table":
+        render_edit(origin)
+        return
+    with top[1]:
+        last_n = {"Last 5": 5, "All": 0}[st.radio("Years", ["Last 5", "All"], horizontal=True, label_visibility="collapsed", key=f"mo_n_{origin}")]
+    for typ in TYPES:                                    # 2 x 2: Stat on top, Tree underneath
         left, right = st.columns(2)
         with left, st.container(border=True):
-            st.markdown(f"<div class='card-title'>Monthly arrivals {origin}</div>",
-                        unsafe_allow_html=True)
-            st.plotly_chart(line_chart(origin, False, last_n), width="stretch")
+            st.markdown(f"<div class='card-title'>{typ} - monthly arrivals {origin}</div>", unsafe_allow_html=True)
+            st.plotly_chart(line_chart(origin, typ, False, last_n), width="stretch")
         with right, st.container(border=True):
-            st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
-            st.plotly_chart(line_chart(origin, True, last_n), width="stretch")
-    else:
-        if origin != COMBINED:
-            render_edit(origin)
-        with st.container(border=True):
-            st.markdown(f"<div class='card-title'>Monthly arrivals {origin} - all crop years</div>",
-                        unsafe_allow_html=True)
-            st.markdown(CSS + table_html(origin), unsafe_allow_html=True)
+            st.markdown(f"<div class='card-title'>{typ} - cumulative arrivals {origin}</div>", unsafe_allow_html=True)
+            st.plotly_chart(line_chart(origin, typ, True, last_n), width="stretch")
+    with st.container(border=True):
+        st.markdown(f"<div class='card-title'>Monthly arrivals {origin} - all crop years</div>", unsafe_allow_html=True)
+        st.markdown(CSS + table_html(origin), unsafe_allow_html=True)

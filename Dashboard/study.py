@@ -191,11 +191,8 @@ def season_table(p: pd.DataFrame, arr: pd.Series, est: pd.Series, implied) -> st
         i_txt = f"{f(i)} <span style='color:#7a86a8'>({i_n}/6 mo)</span>" if latest and pd.isna(a) and i_n else "-"
         body += (f"<tr><td class='cy'>{cy}</td><td>{f(pm, 1)} <span style='color:#7a86a8'>({n})</span></td><td>{f(pk, 1)}</td>"
                  f"<td class='tot'>{f(a)}</td><td>{f(r, 1)}</td><td>{f(r_imp)}</td><td>{i_txt}</td><td>{f(e) if latest and pd.isna(a) else '-'}</td></tr>")
-    note = (f"<div class='card-desc' style='margin-top:6px'>kt per pod = Oct-Mar arrivals / Apr-Sep average pod load. Ratio-implied = this season's pod load "
-            f"x the average kt per pod of past seasons ({f(avg_ratio, 1)}). Model-implied = the monthly lag regression above, summed over "
-            "the Oct-Mar months it can already reach.</div>")
     return (monthly.CSS + f"<div class='mt-wrap' style='display:inline-block;max-width:100%'><table class='mt' style='width:auto'>{head}{body}"
-            f"</table></div>{note}")
+            f"</table></div>")
 
 
 # ---------------------------------------------------------------------------------------------

@@ -382,7 +382,7 @@ def render_entry(data: dict):
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
         for n in notes:
             st.warning(n)
-        b = st.columns([1.3, 0.85, 1.75, 0.75, 2.6, 0.9], vertical_alignment="center")
+        b = st.columns([1.3, 0.85, 1.75, 0.75, 3.5], vertical_alignment="center")
         go_ = b[0].button("Project & Save", type="primary", width="stretch", disabled=not (changes and override and entry_enabled()))
         b[1].markdown("<div style='font-size:12px;color:#5a6688;text-align:right'>Projection uses</div>", unsafe_allow_html=True)
         with b[2]:
@@ -396,14 +396,6 @@ def render_entry(data: dict):
                 st.session_state["_pj_n"] = st.number_input("Last N weeks", min_value=4, max_value=150, step=1, key="pj_n",
                                                             label_visibility="collapsed", help="Last N complete weeks",
                                                             value=int(st.session_state.get("_pj_n", 12)))
-        if entry_enabled():
-            with b[5].popover("Save log", width="stretch"):
-                try:
-                    for ts, m in gh.history(REPO_PATH, 15):
-                        st.markdown(f"<div class='pj-note'>{ts[:16].replace('T', ' ')} UTC - {m.splitlines()[0]}</div>",
-                                    unsafe_allow_html=True)
-                except gh.GitHubError as ex:
-                    st.caption(str(ex))
         if not entry_enabled():
             b[4].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Saving is off: add github_token in Streamlit Secrets "
                           "(without it nothing is stored).</div>", unsafe_allow_html=True)
@@ -422,6 +414,14 @@ def render_entry(data: dict):
                 st.rerun()
         if st.session_state.pop("pj_saved", None):
             st.success("Saved - History below shows the weeks with the projection.")
+        if entry_enabled():
+            with st.expander("Save history", expanded=True):     # open by default
+                try:
+                    for ts, m in gh.history(REPO_PATH, 8):
+                        st.markdown(f"<div class='pj-note'>{ts[:16].replace('T', ' ')} UTC - {m.splitlines()[0]}</div>",
+                                    unsafe_allow_html=True)
+                except gh.GitHubError as ex:
+                    st.caption(str(ex))
     return shown
 
 

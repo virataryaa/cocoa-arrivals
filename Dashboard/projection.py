@@ -393,33 +393,26 @@ def render_entry(data: dict):
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
         for n in notes:
             st.warning(n)
-        b = st.columns([1, 1, 6])
-        do_project = b[0].button("Project", type="primary", width="stretch")
-        do_save = b[1].button("Save", width="stretch", disabled=not (changes and override and entry_enabled()))
+        b = st.columns([1.3, 6])
+        go_ = b[0].button("Project & Save", type="primary", width="stretch", disabled=not (changes and override and entry_enabled()))
         if not entry_enabled():
-            b[2].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Save is off: add github_token in Streamlit Secrets "
+            b[1].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Saving is off: add github_token in Streamlit Secrets "
                           "(without it nothing is stored).</div>", unsafe_allow_html=True)
-        if do_project:
-            st.session_state["pj_show"] = True
         shown = None
-        if st.session_state.get("pj_show"):
-            if changes:
-                pdata, e2 = preview_data(raw, eik, changes)
-                shown = (pdata, frozenset(changes), e2)
-                st.markdown("<div class='pj-note'>History below now shows what you typed (highlighted weeks), with the days not "
-                            "reported filled in by the projection. Not saved until you press Save.</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div class='pj-note'>Nothing changed in the grid - History below already shows the projection "
-                            "for incomplete weeks.</div>", unsafe_allow_html=True)
-        if do_save:
+        if changes:                                       # live preview while typing: History below shows the grid as typed
+            pdata, e2 = preview_data(raw, eik, changes)
+            shown = (pdata, frozenset(changes), e2)
+        if go_:
             try:
                 save_changes(changes)
             except gh.GitHubError as ex:
                 st.error(str(ex))
             else:
                 st.session_state["pj_ver"] = ver + 1
-                st.session_state["pj_show"] = False
+                st.session_state["pj_saved"] = len(changes)
                 st.rerun()
+        if st.session_state.pop("pj_saved", None):
+            st.success("Saved - History below shows the weeks with the projection.")
         if entry_enabled():
             with st.expander("Save history", expanded=False):
                 try:

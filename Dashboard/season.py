@@ -5,6 +5,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import projection
+
 DB = Path(__file__).resolve().parent.parent / "Database"
 CROP_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
 WEEKS_IN_MONTH = [4] * 12                               # every month = 4 weeks -> weeks 1-48; weeks 49-51 have no Forestero value
@@ -15,6 +17,8 @@ SERIES = [
     ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5),
     ("ETG (25/26)", "etg_2526", "#2e75b6", "solid", 2.5),
     ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5),
+    ("ETG (26/27)", "etg_2627", "#0a2463", "solid", 3.5),
+    ("Eikon (26/27)", "eikon_2627", "#e07b39", "solid", 3),
     ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5),
 ]
 
@@ -100,6 +104,9 @@ def render(origin: str = "IVC"):
     df = weekly.copy()
     for col, cy in [("fo_2526", "25/26"), ("fo_2627", "26/27")]:
         df[col] = df.week.map(forestero_weekly(monthly, origin, typ, cy))
+    live = projection.crop_series(projection.build(), projection.load_eikon(), 2026)     # 26/27 from the entry data
+    df["etg_2627"] = df.week.map(live.set_index("week")["etg"])
+    df["eikon_2627"] = df.week.map(live.set_index("week")["eikon"])
 
     if view == "Table":
         with oc[2]:

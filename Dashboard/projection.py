@@ -16,16 +16,18 @@ import ghstore as gh
 DB = Path(__file__).resolve().parent.parent / "Database"
 CSV = DB / "ivc_projection.csv"
 REPO_PATH = "Database/ivc_projection.csv"
+EIKON_CSV = DB / "eikon_weekly.csv"
+EIKON_PATH = "Database/eikon_weekly.csv"
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 PORTS = ["Abidjan", "San Pedro"]
-BAR = {"Abidjan": "rgba(31,138,156,0.28)", "San Pedro": "rgba(10,36,99,0.22)", "Combined": "rgba(201,138,31,0.32)"}
+BAR = {"Abidjan": "rgba(31,138,156,0.28)", "San Pedro": "rgba(10,36,99,0.22)", "Combined": "rgba(201,138,31,0.32)", "Eikon": "rgba(107,74,138,0.28)"}
 
 CSS = """
 <style>
 .pj-wrap { max-height: 640px; overflow: auto; border: 1px solid #e3e7f0; border-radius: 10px; background: #fff; }
 .pj { border-collapse: separate; border-spacing: 0; font-size: 12px; width: 100%; }
 .pj th { position: sticky; top: 0; z-index: 2; background: #0a2463; color: #fff; font-weight: 600; padding: 4px 8px; text-align: center; white-space: nowrap; }
-.pj th.p1 { background: #1f8a9c; } .pj th.p2 { background: #0a2463; } .pj th.p3 { background: #8a5a12; }
+.pj th.p1 { background: #1f8a9c; } .pj th.p2 { background: #0a2463; } .pj th.p4 { background: #6b4a8a; } .pj th.p3 { background: #8a5a12; }
 .pj tr.h2 th { top: 25px; background: #eef0f6; color: #0a2463; font-size: 11px; }
 .pj td { padding: 2px 8px; text-align: right; border-bottom: 1px solid #eef0f6; white-space: nowrap; color: #1a1a2e;
          font-variant-numeric: tabular-nums; }
@@ -49,6 +51,13 @@ CSS = """
 def load() -> pd.DataFrame:
     d = pd.read_csv(DB / "ivc_projection.csv", parse_dates=["week"])
     return d.sort_values(["port", "week"]).reset_index(drop=True)
+
+
+@st.cache_data(ttl=600)
+def load_eikon() -> pd.Series:
+    """Eikon weekly total of both ports, tonnes, indexed by the Monday of the week."""
+    d = pd.read_csv(EIKON_CSV, parse_dates=["week"])
+    return d.set_index("week")["eikon"].astype(float).sort_index()
 
 
 def project_port(d: pd.DataFrame) -> pd.DataFrame:
@@ -106,7 +115,8 @@ def _fmt(v):
     return "-" if v is None or np.isnan(v) else f"{v:,.0f}"
 
 
-def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: frozenset = frozenset()) -> str:
+def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: frozenset = frozenset(),
+               eik: pd.Series | None = None) -> str:
     ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
     all_w = ab.index.union(sp.index)
     comb_all = ab["total"].reindex(all_w) + sp["total"].reindex(all_w)
@@ -116,8 +126,8 @@ def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: fro
     cmax = np.nanmax(comb_all)
 
     h1 = ("<tr><th rowspan=2>Week of</th><th class='p1' colspan=7>Abidjan</th><th class='p2' colspan=7>San Pedro</th>"
-          "<th class='p3' colspan=2>Combined</th></tr>")
-    h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + "<th>Total</th><th>WoW</th></tr>"
+          "<th class='p3' colspan=2>Combined</th>" + ("<th class='p4' colspan=2>Eikon</th>" if eik is not None else "") + "</tr>")
+    h2 = "<tr class='h2'>" + ("".join(f"<th>{x}</th>" for x in DAYS) + "<th>Total</th>") * 2 + "<th>Total</th><th>WoW</th>" + ("<th>Total</th><th>vs ETG</th>" if eik is not None else "") + "</tr>"
     rows = []
     for w in weeks:
         tds = [f"<td class='wk{' mk' if w in mark else ''}'>{w:%d-%b-%y}</td>"]
@@ -141,6 +151,11 @@ def table_html(data: dict, weeks: pd.DatetimeIndex, fit: bool = False, mark: fro
         pv = prev_all[w]
         wow = c / pv - 1 if pd.notna(pv) and pv else np.nan
         tds.append("<td class='na'>-</td>" if np.isnan(wow) else f"<td class='{'up' if wow >= 0 else 'dn'}'>{wow:+.0%}</td>")
+        if eik is not None:
+            ev = eik.get(w, np.nan)
+            tds.append(f"<td style=\"{_bar(ev, np.nanmax(eik.to_numpy()), BAR['Eikon'], False)}\">{_fmt(ev)}</td>")
+            gap = ev / c - 1 if pd.notna(ev) and pd.notna(c) and c else np.nan
+            tds.append("<td class='na'>-</td>" if np.isnan(gap) else f"<td>{gap:+.1%}</td>")
         rows.append("<tr>" + "".join(tds) + "</tr>")
     cls = " fit" if fit else ""
     return f"<div class='pj-wrap{cls}'><table class='pj{cls}'>{h1}{h2}{''.join(rows)}</table></div>"
@@ -180,20 +195,44 @@ def apply_week(frame: pd.DataFrame, week: pd.Timestamp, vals: dict) -> pd.DataFr
     return frame.reindex(columns=["port", "week", *DAYS])
 
 
-N_WEEKS = 6                                             # rows in the entry grid: the coming week + the last 7
+N_WEEKS = 6                                             # rows in the entry grid: the coming week + the last 5
+GRID_COLS = [f"A_{d}" for d in DAYS] + [f"S_{d}" for d in DAYS] + ["Eikon"]
+W_WEEK, W_DAY, W_EIK = 74, 58, 70                      # pixel widths: the header strip above the grid uses the same numbers
 
 
-def week_grids(raw: pd.DataFrame):
-    """Rows = the coming week (blank) then the latest weeks, newest first; one grid per port, columns Mon-Sat."""
+def _eik_frame(text: str) -> pd.DataFrame:
+    return pd.read_csv(io.StringIO(text))
+
+
+def _eik_csv(frame: pd.DataFrame) -> str:
+    frame = frame.drop_duplicates("week", keep="last").sort_values("week").copy()
+    frame["week"] = pd.to_datetime(frame["week"]).dt.strftime("%Y-%m-%d")
+    frame["eikon"] = frame["eikon"].round(0).astype("Int64")
+    return frame.to_csv(index=False, lineterminator="\n")
+
+
+def apply_eikon(frame: pd.DataFrame, week: pd.Timestamp, value) -> pd.DataFrame:
+    frame = frame.copy()
+    frame["week"] = pd.to_datetime(frame["week"])
+    frame = frame[frame.week != week]
+    if value is not None:
+        frame = pd.concat([frame, pd.DataFrame([{"week": week, "eikon": value}])], ignore_index=True)
+    return frame
+
+
+def week_grid(raw: pd.DataFrame, eik: pd.Series):
+    """One grid: rows = the coming week (blank) then the latest weeks, newest first; columns = Abidjan Mon-Sat, San Pedro Mon-Sat, Eikon."""
     latest = pd.Timestamp(raw.week.max())
     past = [pd.Timestamp(w) for w in sorted(raw.week.unique())[-(N_WEEKS - 1):][::-1]]
     weeks = [latest + pd.Timedelta(days=7)] + past
-    grids = {}
-    for p in PORTS:
-        g = raw[raw.port == p].set_index("week")
-        rows = [[g[d].get(w, np.nan) if w in g.index else np.nan for d in DAYS] for w in weeks]
-        grids[p] = pd.DataFrame(rows, columns=DAYS, index=[f"{w:%d-%b-%y}" for w in weeks])
-    return weeks, grids
+    ab, sp = (raw[raw.port == p].set_index("week") for p in PORTS)
+    rows = []
+    for w in weeks:
+        row = [ab[d].get(w, np.nan) if w in ab.index else np.nan for d in DAYS]
+        row += [sp[d].get(w, np.nan) if w in sp.index else np.nan for d in DAYS]
+        row.append(eik.get(w, np.nan))
+        rows.append(row)
+    return weeks, pd.DataFrame(rows, columns=GRID_COLS, index=[f"{w:%d-%b-%y}" for w in weeks]).astype(float)
 
 
 def as_text(grid: pd.DataFrame) -> pd.DataFrame:
@@ -201,100 +240,132 @@ def as_text(grid: pd.DataFrame) -> pd.DataFrame:
     return grid.apply(lambda col: col.map(lambda v: "" if pd.isna(v) else f"{v:.0f}" if float(v).is_integer() else f"{v}"))
 
 
-def to_number(grid: pd.DataFrame, orig: pd.DataFrame, bad: list, port: str) -> pd.DataFrame:
+def to_number(grid: pd.DataFrame, orig: pd.DataFrame, bad: list) -> pd.DataFrame:
     """Text grid back to numbers; '' / None = not reported; anything unreadable keeps the stored value and is reported in `bad`."""
     out = grid.copy().astype(object)
     for i in range(len(grid)):
-        for d in DAYS:
-            txt = grid.iloc[i][d]
+        for col in grid.columns:
+            txt = grid.iloc[i][col]
             txt = "" if txt is None or (isinstance(txt, float) and np.isnan(txt)) else str(txt).replace(",", "").strip()
             try:
                 v = float(txt) if txt else np.nan
                 if v < 0:
                     raise ValueError
             except ValueError:
-                bad.append(f"{port} {grid.index[i]} {d}: '{txt}' is not a valid number - kept the stored value.")
-                v = orig.iloc[i][d]
-            out.iloc[i, out.columns.get_loc(d)] = v
+                label = "Eikon" if col == "Eikon" else f"{'Abidjan' if col[0] == 'A' else 'San Pedro'} {col[2:]}"
+                bad.append(f"{grid.index[i]} {label}: '{txt}' is not a valid number - kept the stored value.")
+                v = orig.iloc[i][col]
+            out.iloc[i, out.columns.get_loc(col)] = v
     return out.astype(float)
 
 
-def collect(weeks, orig: dict, edited: dict) -> dict:
-    """{week: {port: {day: number or None}}} for the weeks whose cells differ from what is stored."""
+def collect(weeks, orig: pd.DataFrame, edited: pd.DataFrame) -> dict:
+    """{week: {"ports": {port: {day: number|None}}, "eikon": number|None, "p": ports changed, "e": eikon changed}} for changed weeks."""
     out = {}
     for i, w in enumerate(weeks):
-        vals, diff = {}, False
-        for p in PORTS:
-            o, e = orig[p].iloc[i].to_numpy(float), edited[p].iloc[i].to_numpy(float)
-            diff = diff or not np.array_equal(o, e, equal_nan=True)
-            vals[p] = {d: (None if np.isnan(x) else float(x)) for d, x in zip(DAYS, e)}
-        if diff:
-            out[w] = vals
+        o, e = orig.iloc[i], edited.iloc[i]
+        p_changed = not np.array_equal(o[GRID_COLS[:12]].to_numpy(float), e[GRID_COLS[:12]].to_numpy(float), equal_nan=True)
+        e_changed = not np.array_equal([o["Eikon"]], [e["Eikon"]], equal_nan=True)
+        if not (p_changed or e_changed):
+            continue
+        num = lambda x: None if np.isnan(x) else float(x)
+        out[w] = {"ports": {"Abidjan": {d: num(e[f"A_{d}"]) for d in DAYS}, "San Pedro": {d: num(e[f"S_{d}"]) for d in DAYS}},
+                  "eikon": num(e["Eikon"]), "p": p_changed, "e": e_changed}
     return out
 
 
-def entry_notes(raw: pd.DataFrame, changes: dict) -> list[str]:
-    """A day far above anything seen at that port (extra zero?)."""
+def entry_notes(raw: pd.DataFrame, eik: pd.Series, changes: dict) -> list[str]:
+    """A day (or Eikon week) far above anything seen before (extra zero?)."""
     notes = []
     for p in PORTS:
         cap = np.nanmax(raw[raw.port == p][DAYS].to_numpy())
-        for w, vals in changes.items():
-            for d, v in vals[p].items():
-                if v is not None and v > 1.5 * cap:
+        for w, c in changes.items():
+            for d, v in c["ports"][p].items():
+                if c["p"] and v is not None and v > 1.5 * cap:
                     notes.append(f"{p} {w:%d-%b} {d} {v:,.0f} is above 1.5x the highest day ever recorded ({cap:,.0f}). Extra zero?")
+    if len(eik):
+        cap = eik.max()
+        for w, c in changes.items():
+            if c["e"] and c["eikon"] is not None and c["eikon"] > 1.5 * cap:
+                notes.append(f"Eikon {w:%d-%b} {c['eikon']:,.0f} is above 1.5x the highest week on file ({cap:,.0f}). Extra zero?")
     return notes
 
 
-def preview_data(raw: pd.DataFrame, changes: dict) -> dict:
+def preview_data(raw: pd.DataFrame, eik: pd.Series, changes: dict):
     """Projection of the grid as typed: stored data with the edited weeks swapped in."""
-    frame = raw.copy()
-    for w, vals in changes.items():
-        frame = apply_week(frame, w, vals)
-    return {p: project_port(frame[frame.port == p].drop(columns="port").sort_values("week")) for p in PORTS}
+    frame, e = raw.copy(), eik.copy()
+    for w, c in changes.items():
+        frame = apply_week(frame, w, c["ports"])
+        if c["eikon"] is None:
+            e = e.drop(w, errors="ignore")
+        else:
+            e.loc[w] = c["eikon"]
+    data = {p: project_port(frame[frame.port == p].drop(columns="port").sort_values("week")) for p in PORTS}
+    return data, e.sort_index()
+
+
+def _commit_or_write(path: str, local: Path, change, msg: str):
+    if entry_enabled():
+        new_text, _ = gh.commit(path, change, msg)
+    else:                                                # local run: write the file directly
+        new_text, _ = change(local.read_text(encoding="utf-8"))
+    local.write_text(new_text, encoding="utf-8", newline="")   # show it now, before Cloud redeploys
 
 
 def save_changes(changes: dict):
-    msg = "; ".join(f"{w:%Y-%m-%d}: " + " | ".join(
-        f"{p} " + ",".join(f"{v:,.0f}" for v in vals[p].values() if v is not None) for p in PORTS) for w, vals in changes.items())
+    port_w = {w: c for w, c in changes.items() if c["p"]}
+    eik_w = {w: c for w, c in changes.items() if c["e"]}
+    if port_w:
+        msg = "Weeks " + "; ".join(f"{w:%Y-%m-%d}: " + " | ".join(
+            f"{p} " + ",".join(f"{v:,.0f}" for v in c["ports"][p].values() if v is not None) for p in PORTS) for w, c in port_w.items())
 
-    def change(text):
-        frame = _frame(text)
-        for w, vals in changes.items():
-            frame = apply_week(frame, w, vals)
-        return _to_csv(frame), None
+        def change_ports(text):
+            frame = _frame(text)
+            for w, c in port_w.items():
+                frame = apply_week(frame, w, c["ports"])
+            return _to_csv(frame), None
 
-    if entry_enabled():
-        new_text, _ = gh.commit(REPO_PATH, change, "Weeks " + msg)
-    else:                                                # local run: write the file directly
-        new_text, _ = change(CSV.read_text(encoding="utf-8"))
-    CSV.write_text(new_text, encoding="utf-8", newline="")   # show it now, before Cloud redeploys
+        _commit_or_write(REPO_PATH, CSV, change_ports, msg)
+    if eik_w:
+        msg = "Eikon " + "; ".join(f"{w:%Y-%m-%d}: " + (f"{c['eikon']:,.0f}" if c["eikon"] is not None else "cleared") for w, c in eik_w.items())
+
+        def change_eikon(text):
+            frame = _eik_frame(text)
+            for w, c in eik_w.items():
+                frame = apply_eikon(frame, w, c["eikon"])
+            return _eik_csv(frame), None
+
+        _commit_or_write(EIKON_PATH, EIKON_CSV, change_eikon, msg)
     load.clear()
+    load_eikon.clear()
     build.clear()
 
 
 def render_entry(data: dict):
-    """Returns (projected data, edited weeks) after Project, else None."""
-    raw = load()
-    weeks, orig = week_grids(raw)
+    """Returns (projected data, edited weeks, eikon series) after Project, else None."""
+    raw, eik = load(), load_eikon()
+    weeks, orig = week_grid(raw, eik)
     ver = st.session_state.get("pj_ver", 0)
     with st.container(border=True):
         st.markdown("<div class='card-title'>Enter / override weeks</div><div class='card-desc'>Type over any cell: blank = not reported, "
-                    "0 = no arrivals. Top row is the coming week. <b>Project</b> fills the full weeks, <b>Save</b> stores what you typed.</div>",
-                    unsafe_allow_html=True)
-        cols = st.columns([4.7, 4.7, 3.3])
-        edited = {}
-        for c, p, colour in zip(cols[:2], PORTS, ["#1f8a9c", "#0a2463"]):
-            with c:
-                st.markdown(f"<div style='background:{colour};color:#fff;font-weight:600;font-size:12px;text-align:center;"
-                            f"padding:2px 0;border-radius:6px 6px 0 0;width:{74 + 62 * 6 + 2}px'>{p}</div>", unsafe_allow_html=True)
-                edited[p] = st.data_editor(
-                    as_text(orig[p]), key=f"pj_ed_{p}_{ver}", width="content", row_height=26, height=26 * (len(weeks) + 1) + 16,
-                    column_config={"_index": st.column_config.Column("Week", width=74),
-                                   **{d: st.column_config.TextColumn(d, width=62) for d in DAYS}})
+                    "0 = no arrivals. Top row is the coming week. Eikon = weekly total of both ports (tonnes). <b>Project</b> fills the full "
+                    "weeks in the History table below, <b>Save</b> stores what you typed.</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='display:flex;font-size:12px;font-weight:600;color:#fff;text-align:center;margin-bottom:1px'>"
+            f"<div style='width:{W_WEEK}px'></div>"
+            f"<div style='width:{6 * W_DAY}px;background:#1f8a9c;padding:2px 0;border-radius:6px 0 0 0'>Abidjan</div>"
+            f"<div style='width:{6 * W_DAY}px;background:#0a2463;padding:2px 0'>San Pedro</div>"
+            f"<div style='width:{W_EIK}px;background:#6b4a8a;padding:2px 0;border-radius:0 6px 0 0'>Eikon</div></div>", unsafe_allow_html=True)
+        cfg = {"_index": st.column_config.Column("Week", width=W_WEEK)}
+        for pre in ("A", "S"):
+            cfg.update({f"{pre}_{d}": st.column_config.TextColumn(d, width=W_DAY) for d in DAYS})
+        cfg["Eikon"] = st.column_config.TextColumn("Total", width=W_EIK)
+        edited = st.data_editor(as_text(orig), key=f"pj_ed_{ver}", width="content", row_height=26,
+                                height=26 * (len(weeks) + 1) + 16, column_config=cfg)
         bad = []
-        edited = {p: to_number(edited[p], orig[p], bad, p) for p in PORTS}
+        edited = to_number(edited, orig, bad)
         changes = collect(weeks, orig, edited)
-        notes = entry_notes(raw, changes)
+        notes = entry_notes(raw, eik, changes)
         for n in bad:
             st.error(n)
         override = st.checkbox("Override warnings", key="pj_override") if notes else True
@@ -308,7 +379,8 @@ def render_entry(data: dict):
         shown = None
         if st.session_state.get("pj_show"):
             if changes:
-                shown = (preview_data(raw, changes), frozenset(changes))
+                pdata, e2 = preview_data(raw, eik, changes)
+                shown = (pdata, frozenset(changes), e2)
                 st.markdown("<div class='pj-note'>History below now shows what you typed (highlighted weeks), with the days not "
                             "reported filled in by the projection. Not saved until you press Save.</div>", unsafe_allow_html=True)
             else:
@@ -332,6 +404,46 @@ def render_entry(data: dict):
                 except gh.GitHubError as ex:
                     st.caption(str(ex))
     return shown
+
+
+def crop_week_one(start_year: int) -> pd.Timestamp:
+    """Monday of the week that contains 1 October - crop-year week 1 (matches the desk's weekly ETG series)."""
+    d = pd.Timestamp(start_year, 10, 1)
+    return d - pd.Timedelta(days=d.weekday())
+
+
+def crop_series(data: dict, eik: pd.Series, start_year: int) -> pd.DataFrame:
+    """Weeks 1-51 of the crop year starting `start_year`: ETG = Abidjan + San Pedro (complete weeks only), Eikon, both in thousand tonnes."""
+    ab, sp = data["Abidjan"].set_index("week"), data["San Pedro"].set_index("week")
+    w1 = crop_week_one(start_year)
+    rows = []
+    for n in range(1, 52):
+        w = w1 + pd.Timedelta(days=7 * (n - 1))
+        etg = np.nan
+        if w in ab.index and w in sp.index and not ab.loc[w, "projected"] and not sp.loc[w, "projected"]:
+            etg = (ab.loc[w, "total"] + sp.loc[w, "total"]) / 1000
+        rows.append((n, etg, eik.get(w, np.nan) / 1000))
+    return pd.DataFrame(rows, columns=["week", "etg", "eikon"])
+
+
+def render_history(data: dict, mark: frozenset = frozenset(), eik: pd.Series | None = None):
+    allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week), reverse=True)
+    eik = load_eikon() if eik is None else eik
+    with st.container(border=True):
+        st.markdown("<div class='card-title'>History</div><div class='card-desc'>Every week on file, newest first (tonnes). "
+                    "Hatched italic = not reported, projected; <b>P</b> = projected total. Eikon = its weekly total and the gap to the "
+                    "combined total.</div>", unsafe_allow_html=True)
+        st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True, mark=mark, eik=eik), unsafe_allow_html=True)
+
+
+def render_week():
+    data = build()
+    shown = render_entry(data)
+    if shown:
+        pdata, mark, e2 = shown
+        render_history(pdata, mark, e2)
+    else:
+        render_history(data)
 
 
 PORT_COL = {"Abidjan": "#1f8a9c", "San Pedro": "#0a2463"}
@@ -392,17 +504,3 @@ def render_accuracy(data: dict):
         st.markdown(CSS + f"<div class='pj-wrap' style='max-height:none'><table class='pj'>{head}{''.join(rows)}</table></div>"
                     "<div class='pj-note'>Avg miss = typical size of the error; bias = its direction (+ means the projection was too high).</div>",
                     unsafe_allow_html=True)
-
-
-def render_history(data: dict, mark: frozenset = frozenset()):
-    allw = sorted(set(data["Abidjan"].week) | set(data["San Pedro"].week), reverse=True)
-    with st.container(border=True):
-        st.markdown("<div class='card-title'>History</div><div class='card-desc'>Every week on file, newest first (tonnes). "
-                    "Hatched italic = not reported, projected; <b>P</b> = projected total.</div>", unsafe_allow_html=True)
-        st.markdown(CSS + table_html(data, pd.DatetimeIndex(allw), fit=True, mark=mark), unsafe_allow_html=True)
-
-
-def render_week():
-    data = build()
-    shown = render_entry(data)
-    render_history(*(shown if shown else (data, frozenset())))

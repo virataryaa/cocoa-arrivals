@@ -84,7 +84,7 @@ VIBRANT = ["#0b0b0b", "#a4111c", "#00a67e",          # running year: Manual, Eik
            "#00897b", "#7ed321", "#5c6bc0",
            "#e53935", "#f06292", "#26c6da",
            "#6d4c41", "#ab47bc", "#43a047"]
-SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("solid", 0.8), "Forestero": ("solid", 0.7)}      # (dash, width factor)
+SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("dot", 0.95), "Forestero": ("solid", 0.7)}      # (dash, width factor)
 
 
 def _fade(hex_: str, t: float) -> str:

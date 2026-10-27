@@ -76,14 +76,20 @@ def _rgba(hex_: str, a: float) -> str:
 
 
 SOURCES = ["Manual", "Eikon", "Forestero"]
-# one vibrant colour per (crop year, source), fixed so a series keeps its colour whatever else is selected; neighbours in the legend always differ
-VIBRANT = ["#1d4ed8", "#ff6b00", "#00b894",          # newest year: Manual, Eikon, Forestero
-           "#d6249f", "#00a8e8", "#7ed321",
-           "#8e24aa", "#ffb300", "#e53935",
-           "#00897b", "#f06292", "#5c6bc0",
-           "#c0ca33", "#ff7043", "#26c6da",
-           "#6d4c41", "#ab47bc", "#43a047"]
+# Running year: Manual black, Eikon deep red, Forestero green. Older years: one vibrant colour per (year, source), shaded lighter the older they are.
+# Fixed per series, so a line keeps its colour whatever else is selected.
+VIBRANT = ["#0b0b0b", "#a4111c", "#00a67e",          # running year: Manual, Eikon, Forestero
+           "#1d4ed8", "#ff6b00", "#d6249f",
+           "#8e24aa", "#00a8e8", "#ffb300",
+           "#00897b", "#7ed321", "#5c6bc0",
+           "#e53935", "#f06292", "#26c6da"]
 SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("solid", 0.8), "Forestero": ("solid", 0.7)}      # (dash, width factor)
+
+
+def _fade(hex_: str, t: float) -> str:
+    """Mix a colour toward white: t=0 is the colour itself, t=1 is white."""
+    r, g, b = (int(hex_[i:i + 2], 16) for i in (1, 3, 5))
+    return "#%02x%02x%02x" % tuple(round(c + (255 - c) * t) for c in (r, g, b))
 
 
 def season_years() -> list:
@@ -102,7 +108,8 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         if src not in sources or lab not in rank or col not in df or df[col].notna().sum() == 0:
             continue
         dash_, wf = SOURCE_STYLE[src]
-        colour = VIBRANT[season_years().index(lab) * 3 + SOURCES.index(src)]
+        yi = season_years().index(lab)
+        colour = _fade(VIBRANT[yi * 3 + SOURCES.index(src)], min(0.55, 0.15 * max(yi - 1, 0)) if yi else 0)
         width = (3 if rank[lab] == 0 else 2.2) * wf
         name = f"{src} {lab}"
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]

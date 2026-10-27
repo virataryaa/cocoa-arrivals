@@ -169,12 +169,7 @@ def table_html(df: pd.DataFrame, cumulative: bool) -> str:
 
 def render(origin: str = "IVC"):
     weekly, monthly = load()
-    oc = st.columns([1.3, 1.4, 1.6, 4], vertical_alignment="center")
-    with oc[0]:
-        typ = st.radio("Forestero", ["Stat", "Tree"], horizontal=True, label_visibility="collapsed", key="fo_type",
-                       help="Forestero monthly series used for the dashed lines: Stat = statistical, Tree = tree-count based.")
-    with oc[1]:
-        view = st.radio("View", ["Charts", "Table"], horizontal=True, label_visibility="collapsed", key="season_view")
+    typ = "Stat"                                           # Forestero series behind the dashed lines
     df = weekly.copy()
     y = start_year()
     for yy in range(y - 5, y + 1):
@@ -188,14 +183,6 @@ def render(origin: str = "IVC"):
         if yy == y:
             df[f"etg_{tag(yy)}_proj"] = df.week.map(live["proj"]).fillna(False).astype(bool)
 
-    if view == "Table":
-        with oc[2]:
-            cum = st.radio("Basis", ["Weekly", "Cumulative"], horizontal=True, label_visibility="collapsed", key="season_basis") == "Cumulative"
-        with st.container(border=True):
-            st.markdown(f"<div class='card-title'>{'Cumulative' if cum else 'Weekly'} arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
-            st.markdown(TABLE_CSS + table_html(df, cum), unsafe_allow_html=True)
-        return
-
     pick = st.columns([2.2, 2.2, 4], vertical_alignment="center")
     years = pick[0].multiselect("Crop year", season_years(), default=season_years()[:2], key="season_years")
     sources = pick[1].multiselect("Source", SOURCES, default=SOURCES, key="season_sources")
@@ -205,3 +192,7 @@ def render(origin: str = "IVC"):
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
         st.plotly_chart(chart(df, True, 430, years, sources), width="stretch")
+    for cum in (False, True):
+        with st.container(border=True):
+            st.markdown(f"<div class='card-title'>{'Cumulative' if cum else 'Weekly'} arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
+            st.markdown(TABLE_CSS + table_html(df, cum), unsafe_allow_html=True)

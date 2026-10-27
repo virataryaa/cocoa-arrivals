@@ -74,11 +74,11 @@ CSS = """
   [data-baseweb="select"] svg { fill:#7b1e3a !important; }
   /* multiselects (Crop year / Source): deep orange chips */
   [data-testid="stMultiSelect"] span[data-baseweb="tag"], [data-testid="stMultiSelect"] span[data-baseweb="tag"] div,
-  [data-testid="stMultiSelect"] span[data-baseweb="tag"] span { background-color:#d9480f !important; color:#ffffff !important; }
-  [data-testid="stMultiSelect"] span[data-baseweb="tag"] { border-radius:8px !important; box-shadow:0 1px 3px rgba(217,72,15,.35); }
+  [data-testid="stMultiSelect"] span[data-baseweb="tag"] span { background-color:#4a5578 !important; color:#ffffff !important; }
+  [data-testid="stMultiSelect"] span[data-baseweb="tag"] { border-radius:8px !important; box-shadow:0 1px 3px rgba(74,85,120,.35); }
   [data-testid="stMultiSelect"] span[data-baseweb="tag"] svg { fill:#ffffff !important; }
-  [data-testid="stMultiSelect"] [data-baseweb="select"] svg { fill:#d9480f !important; }
-  [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within { box-shadow:0 0 0 3px rgba(217,72,15,.18), 0 8px 22px rgba(10,36,99,.14) !important; }
+  [data-testid="stMultiSelect"] [data-baseweb="select"] svg { fill:#4a5578 !important; }
+  [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within { box-shadow:0 0 0 3px rgba(74,85,120,.18), 0 8px 22px rgba(10,36,99,.14) !important; }
   [data-baseweb="popover"] [data-baseweb="menu"], [data-baseweb="popover"] ul { background:rgba(255,255,255,.82) !important;
     -webkit-backdrop-filter:blur(18px) saturate(170%); backdrop-filter:blur(18px) saturate(170%);
     border:1px solid rgba(255,255,255,.9) !important; border-radius:14px !important; box-shadow:0 14px 40px rgba(10,36,99,.18) !important; }

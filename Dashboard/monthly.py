@@ -232,8 +232,16 @@ def render_edit(origin: str):
                             f"padding:2px 0;border-radius:6px 6px 0 0;width:{56 + 68 * len(years) + 2}px'>{typ}</div>",
                             unsafe_allow_html=True)
                 typed = st.data_editor(_as_text(sub), key=f"mo_ed_{origin}_{typ}_{ver}", width="content", row_height=26,
-                                       hide_index=True, height=26 * (len(sub) + 1) + 16, column_config=cfg)
-            changes.update(_changes(sub, _parse(typed, sub, bad)))
+                                       hide_index=True, height=26 * (len(sub) + 1) + 24, column_config=cfg)
+                new = _parse(typed, sub, bad)
+                tot = new[years].sum(min_count=1)             # Total row, follows what is typed (updates as you edit)
+                cells = "".join(f"<td style='width:{68}px'>{tot[cy]:,.0f}</td>" if pd.notna(tot[cy]) else f"<td style='width:{68}px;color:#c3cadb'>-</td>"
+                                for cy in years)
+                st.markdown(f"<table style='border-collapse:collapse;table-layout:fixed;width:{56 + 68 * len(years)}px;margin:-6px 0 0 0;font-size:12px;"
+                            f"font-variant-numeric:tabular-nums;background:linear-gradient(180deg,#f7f9fd,#e9eff9);border-top:2px solid #0a2463'>"
+                            f"<tr style='font-weight:700;color:#1e3a6e;text-align:left'><td style='width:56px;padding:3px 0 3px 8px'>Total</td>{cells}</tr></table>",
+                            unsafe_allow_html=True)
+            changes.update(_changes(sub, new))
         for n in bad:
             st.error(n)
         vals = orig[years].to_numpy(float)

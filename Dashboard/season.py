@@ -108,11 +108,13 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         main = col == f"etg_{cur}"
         stepped = src == "Forestero" and not cumulative
         fig.add_scatter(x=df.week, y=y, name=name, mode="lines", connectgaps=False,
-                        line=dict(color=colour, dash="dash" if src == "Forestero" else "solid", width=width + (0.6 if main else 0), shape="hv" if stepped else "linear"),
-                        fill="tozeroy" if main else None, fillcolor=_rgba(colour, 0.07) if main else None,
+                        line=dict(color=colour, dash="dash" if src == "Forestero" else "solid", width=width + (0.6 if main else 0), shape="hv" if stepped else "spline", smoothing=0.45),
+                        fill="tozeroy" if main else None, fillcolor=_rgba(colour, 0.09) if main else None,
                         legendgroup=name, hovertemplate="%{y:,.1f}")
         if is_cur and src != "Forestero" and y.notna().any():              # this season: a dot + value on the latest week
             last = y.last_valid_index()
+            fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers", showlegend=False, legendgroup=name, hoverinfo="skip",
+                            marker=dict(size=20, color=_rgba(colour, 0.18)))
             fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers+text" if main else "markers", showlegend=False, legendgroup=name,
                             hoverinfo="skip", text=[f"{y[last]:,.1f}"] if main else None, textposition="top center", textfont=dict(size=11, color=colour),
                             marker=dict(size=9, color=colour, line=dict(width=2, color="#ffffff")))
@@ -122,24 +124,26 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         fig.add_scatter(x=df.week[m], y=y[m], name=f"Manual {label(start_year())} projected", mode="markers",
                         marker=dict(symbol="circle-open", size=12, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
     fig.update_layout(
-        hovermode="x unified", height=height, margin=dict(t=44, b=10, l=10, r=14),
-        hoverlabel=dict(bgcolor="rgba(255,255,255,0.96)", bordercolor="rgba(43,74,138,0.2)", font=dict(size=12, color="#1a1a2e")),
-        xaxis=dict(tickmode="array", tickvals=list(MONTH_TICKS), ticktext=list(MONTH_TICKS.values()), range=[0.5, 51.5], showgrid=True,
-                   gridcolor="rgba(10,36,99,0.05)", showline=False, ticks="", tickfont=dict(size=11, color="#4a5578"),
-                   showspikes=True, spikemode="across", spikecolor="rgba(10,36,99,0.25)", spikethickness=1, spikedash="dot"),
-        yaxis=dict(gridcolor="rgba(10,36,99,0.07)", showline=False, zeroline=False, ticks="", tickformat=",", hoverformat=",.1f",
-                   rangemode="tozero", title=dict(text="kt", font=dict(size=11, color="#7a86a8"))),
-        legend=dict(orientation="h", x=0, y=1.14, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)", itemsizing="trace", itemwidth=44),
+        hovermode="x unified", height=height, margin=dict(t=40, b=8, l=8, r=12),
+        hoverlabel=dict(bgcolor="rgba(255,255,255,0.97)", bordercolor="rgba(10,36,99,0.12)", font=dict(size=12, color="#1a1a2e")),
+        xaxis=dict(tickmode="array", tickvals=list(MONTH_TICKS), ticktext=list(MONTH_TICKS.values()), range=[0.5, 51.5], showgrid=False,
+                   showline=True, linecolor="rgba(10,36,99,0.15)", ticks="outside", ticklen=4, tickcolor="rgba(10,36,99,0.15)",
+                   tickfont=dict(size=11, color="#6b7796"),
+                   showspikes=True, spikemode="across", spikecolor="rgba(10,36,99,0.22)", spikethickness=1, spikedash="solid"),
+        yaxis=dict(gridcolor="rgba(10,36,99,0.06)", showline=False, zeroline=False, ticks="", tickformat=",", hoverformat=",.1f",
+                   rangemode="tozero", tickfont=dict(size=11, color="#6b7796")),
+        legend=dict(orientation="h", x=0, y=1.13, xanchor="left", yanchor="top", font=dict(size=11, color="#4a5578"), bgcolor="rgba(0,0,0,0)",
+                    itemsizing="constant", itemwidth=36, tracegroupgap=0),
     )
     return theme.style(fig)
 
 
 TABLE_CSS = """
 <style>
-.st-wrap { overflow: auto; max-height: 560px; border: 1px solid #e3e7f0; border-radius: 10px; background: #fff; display: inline-block; max-width: 100%; }
-.st-tab { border-collapse: separate; border-spacing: 0; font-size: 12px; }
-.st-tab th { position: sticky; top: 0; background: #0a2463; color: #fff; font-weight: 600; padding: 4px 10px; text-align: center; white-space: nowrap; }
-.st-tab td { padding: 2px 10px; text-align: right; border-bottom: 1px solid #eef0f6; white-space: nowrap; font-variant-numeric: tabular-nums; color: #1a1a2e; }
+.st-wrap { overflow: auto; max-height: 440px; border: 0; border-radius: 10px; background: #fff; display: inline-block; max-width: 100%; }
+.st-tab { border-collapse: separate; border-spacing: 0; font-size: 11px; }
+.st-tab th { position: sticky; top: 0; background: #0a2463; color: #fff; font-weight: 600; padding: 2px 8px; text-align: center; white-space: nowrap; }
+.st-tab td { padding: 1px 8px; line-height: 1.25; text-align: right; border-bottom: 1px solid #eef0f6; white-space: nowrap; font-variant-numeric: tabular-nums; color: #1a1a2e; }
 .st-tab td.wk { text-align: center; font-weight: 600; background: #f6f7fb; }
 .st-tab td.na { color: #b8bfd2; }
 </style>
@@ -192,7 +196,6 @@ def render(origin: str = "IVC"):
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
         st.plotly_chart(chart(df, True, 430, years, sources), width="stretch")
-    for cum in (False, True):
-        with st.container(border=True):
-            st.markdown(f"<div class='card-title'>{'Cumulative' if cum else 'Weekly'} arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
-            st.markdown(TABLE_CSS + table_html(df, cum), unsafe_allow_html=True)
+    with st.container():
+        st.markdown(f"<div class='card-title'>Weekly arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
+        st.markdown(TABLE_CSS + table_html(df, False), unsafe_allow_html=True)

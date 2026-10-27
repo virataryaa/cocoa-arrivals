@@ -3,7 +3,7 @@ import streamlit as st
 
 GRID = "rgba(10,36,99,0.08)"
 AXIS = "#4a5578"
-FONT = "-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif"
+FONT = "Inter,'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif"
 
 FONTS = ("<style>@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&"
          "family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');</style>")
@@ -86,18 +86,17 @@ CSS = """
   [data-baseweb="popover"] li[aria-selected="true"] { background:rgba(123,30,58,.10) !important; }
   [data-testid="stMain"] [data-testid="stWidgetLabel"] p { font-family:'Plus Jakarta Sans','Inter',sans-serif !important; font-size:12.5px !important;
     font-weight:600 !important; color:#1e3a6e !important; }
-  /* chart cards */
-  [data-testid="stMain"] [data-testid="stPlotlyChart"] { background:#ffffff; border:1px solid rgba(43,74,138,.10); border-radius:18px; padding:6px 8px; overflow:hidden;
-    box-shadow:0 1px 2px rgba(10,36,99,.04), 0 4px 14px rgba(30,58,110,.06), inset 0 1px 0 #ffffff; transition:box-shadow .2s; }
-  [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot, [data-testid="stMain"] [data-testid="stPlotlyChart"] .main-svg { border-radius:16px; }
-  [data-testid="stMain"] [data-testid="stPlotlyChart"]:hover { box-shadow:0 1px 2px rgba(10,36,99,.05), 0 8px 20px rgba(30,58,110,.09), inset 0 1px 0 #ffffff; }
+  /* no frames: charts, cards and tables sit straight on the page */
+  [data-testid="stMain"] [data-testid="stPlotlyChart"] { background:transparent; border:0; box-shadow:none; padding:0; }
+  [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) { background:transparent !important; border:0 !important;
+    box-shadow:none !important; border-radius:0; }
   .card-title, .page-title, .app-title { font-family:'Plus Jakarta Sans','Inter',sans-serif; letter-spacing:-.005em; }
   /* buttons */
   .stButton > button, .stDownloadButton > button { border-radius:999px; border:1px solid rgba(43,74,138,.18); background:linear-gradient(180deg,#ffffff,#eef2fa);
     color:#0a2463; font-weight:600; box-shadow:0 1px 2px rgba(10,36,99,.06); transition:box-shadow .18s, transform .18s; }
   .stButton > button:hover, .stDownloadButton > button:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(10,36,99,.14); border-color:rgba(43,74,138,.35); color:#0a2463; }
   /* HTML tables: icy header, rounded frame */
-  .st-wrap { border:1px solid rgba(43,74,138,.12) !important; border-radius:14px !important; box-shadow:0 1px 2px rgba(10,36,99,.04), 0 8px 24px rgba(10,36,99,.06); }
+  .st-wrap { border:0 !important; box-shadow:none !important; border-radius:10px !important; }
   .st-tab th { background:linear-gradient(180deg,#f7f9fd,#edf2fa) !important; color:#1e3a6e !important; font-family:'Plus Jakarta Sans','Inter',sans-serif;
     font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 </style>

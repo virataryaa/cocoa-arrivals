@@ -33,14 +33,14 @@ def series_list() -> list:
     y = start_year()
     c, p, q = tag(y), tag(y - 1), tag(y - 2)
     return [
-        (f"Manual ({label(y)})", f"etg_{c}", "#0a2463", "solid", 3.5, True),
-        (f"Eikon ({label(y)})", f"eikon_{c}", "#e07b39", "solid", 3, True),
-        (f"Forestero ({label(y)})", f"fo_{c}", "#9c7a00", "dash", 2.5, True),
-        (f"Manual ({label(y - 1)})", f"etg_{p}", "#2e75b6", "solid", 2.5, True),
-        (f"Eikon ({label(y - 1)})", f"eikon_{p}", "#c00000", "solid", 2.5, True),
-        (f"Forestero ({label(y - 1)})", f"fo_{p}", "#d9d9d9", "dash", 2.5, True),
-        (f"Manual ({label(y - 2)})", f"etg_{q}", "#a6a6a6", "solid", 2.5, False),
-        (f"Eikon ({label(y - 2)})", f"eikon_{q}", "#843c0c", "dot", 2.5, False),
+        (f"Manual ({label(y)})", f"etg_{c}", "#0a2463", "solid", 3, True),
+        (f"Eikon ({label(y)})", f"eikon_{c}", "#c98a1f", "solid", 2.2, True),
+        (f"Forestero ({label(y)})", f"fo_{c}", "#1f8a9c", "dash", 2, True),
+        (f"Manual ({label(y - 1)})", f"etg_{p}", "#7b93c4", "solid", 1.8, True),
+        (f"Eikon ({label(y - 1)})", f"eikon_{p}", "#d9a15a", "solid", 1.6, True),
+        (f"Forestero ({label(y - 1)})", f"fo_{p}", "#9fc9d1", "dash", 1.6, True),
+        (f"Manual ({label(y - 2)})", f"etg_{q}", "#b4bccd", "solid", 1.5, False),
+        (f"Eikon ({label(y - 2)})", f"eikon_{q}", "#cdb89a", "dot", 1.5, False),
     ]
 
 
@@ -61,30 +61,46 @@ def forestero_weekly(monthly: pd.DataFrame, origin: str, typ: str, crop_year: st
     return pd.Series(out)
 
 
+MONTH_TICKS = {1: "Oct", 5: "Nov", 9: "Dec", 14: "Jan", 18: "Feb", 22: "Mar", 27: "Apr", 31: "May", 35: "Jun", 40: "Jul", 44: "Aug", 48: "Sep"}
+
+
+def _rgba(hex_: str, a: float) -> str:
+    return f"rgba({int(hex_[1:3], 16)},{int(hex_[3:5], 16)},{int(hex_[5:7], 16)},{a})"
+
+
 def chart(df: pd.DataFrame, cumulative: bool, height: int):
     fig = go.Figure()
+    cur = tag(start_year())
     for name, col, colour, dash, width, shown in series_list():
         if col not in df or df[col].notna().sum() == 0:
             continue
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
-        live = col.endswith(tag(start_year())) and dash != "dash"           # this season: markers, so a single week is visible too
-        fig.add_scatter(x=df.week, y=y, name=name, mode="lines+markers" if live else "lines", connectgaps=False,
-                        marker=dict(size=7, color=colour),
-                        line=dict(color=colour, dash=dash, width=width, shape="hv" if (dash == "dash" and not cumulative) else "linear"),
-                        hovertemplate="%{y:,.0f}", visible=True if shown else "legendonly")
-    cur = tag(start_year())
+        is_cur = col.endswith(cur)
+        main = col == f"etg_{cur}"
+        stepped = dash == "dash" and not cumulative
+        fig.add_scatter(x=df.week, y=y, name=name, mode="lines", connectgaps=False,
+                        line=dict(color=colour, dash=dash, width=width + (0.6 if main else 0), shape="hv" if stepped else "linear"),
+                        fill="tozeroy" if main else None, fillcolor=_rgba(colour, 0.07) if main else None,
+                        legendgroup=name, hovertemplate="%{y:,.1f}", visible=True if shown else "legendonly")
+        if is_cur and dash != "dash" and y.notna().any():              # this season: a dot + value on the latest week
+            last = y.last_valid_index()
+            fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers+text", showlegend=False, legendgroup=name, hoverinfo="skip",
+                            text=[f"{y[last]:,.1f}"], textposition="top center", textfont=dict(size=11, color=colour),
+                            marker=dict(size=9, color=colour, line=dict(width=2, color="#ffffff")))
     if f"etg_{cur}_proj" in df and df[f"etg_{cur}_proj"].any():          # the running week: projected, not final
         y = df[f"etg_{cur}"].cumsum(skipna=True).where(df[f"etg_{cur}"].notna()) if cumulative else df[f"etg_{cur}"]
         m = df[f"etg_{cur}_proj"]
         fig.add_scatter(x=df.week[m], y=y[m], name=f"Manual ({label(start_year())}) projected", mode="markers",
-                        marker=dict(symbol="circle-open", size=11, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
+                        marker=dict(symbol="circle-open", size=12, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
     fig.update_layout(
-        template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#1a1a2e"), hovermode="x unified", height=height,
-        xaxis=dict(title="Week of crop year (1 = first week of October)", gridcolor="rgba(10,36,99,0.08)", color="#4a5578", dtick=2, range=[0.5, 51.5]),
-        yaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578", tickformat=",", hoverformat=",.0f", rangemode="tozero"),
-        legend=dict(orientation="h", x=0, y=-0.2, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
-        margin=dict(t=10, b=10, l=10, r=10),
+        hovermode="x unified", height=height, margin=dict(t=44, b=10, l=10, r=14),
+        hoverlabel=dict(bgcolor="rgba(255,255,255,0.96)", bordercolor="rgba(43,74,138,0.2)", font=dict(size=12, color="#1a1a2e")),
+        xaxis=dict(tickmode="array", tickvals=list(MONTH_TICKS), ticktext=list(MONTH_TICKS.values()), range=[0.5, 51.5], showgrid=True,
+                   gridcolor="rgba(10,36,99,0.05)", showline=False, ticks="", tickfont=dict(size=11, color="#4a5578"),
+                   showspikes=True, spikemode="across", spikecolor="rgba(10,36,99,0.25)", spikethickness=1, spikedash="dot"),
+        yaxis=dict(gridcolor="rgba(10,36,99,0.07)", showline=False, zeroline=False, ticks="", tickformat=",", hoverformat=",.1f",
+                   rangemode="tozero", title=dict(text="kt", font=dict(size=11, color="#7a86a8"))),
+        legend=dict(orientation="h", x=0, y=1.14, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)", itemsizing="constant"),
     )
     return theme.style(fig)
 

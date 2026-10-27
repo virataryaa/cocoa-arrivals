@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+import theme
+
 # Validated categorical slots (dark-mode steps) from the dataviz reference palette.
 SERIES = {
     "blue": "#3987e5",
@@ -136,7 +138,7 @@ def monthly_comparison(df_wide, year_cols, title="Monthly Comparison", height=No
                 marker=dict(size=6, symbol="circle-open", color=INK),
             ))
     fig.update_layout(**_layout(title, height))
-    return fig
+    return theme.style(fig)
 
 
 def cumulative_forecast(df_wide, year_cols, title="Cumulative (to date)", height=None, proj_vals=None):
@@ -172,7 +174,7 @@ def cumulative_forecast(df_wide, year_cols, title="Cumulative (to date)", height
                 marker=dict(size=6, symbol="circle-open", color=INK),
             ))
     fig.update_layout(**_layout(title, height))
-    return fig
+    return theme.style(fig)
 
 
 def min_max_avg(df_wide, year_cols, title="Current vs Min / Max / Avg", height=None, proj_vals=None):
@@ -204,7 +206,7 @@ def min_max_avg(df_wide, year_cols, title="Current vs Min / Max / Avg", height=N
                 marker=dict(size=6, symbol="circle-open", color=INK),
             ))
     fig.update_layout(**_layout(title, height))
-    return fig
+    return theme.style(fig)
 
 
 def _current_period_index(df_wide, year_cols):
@@ -413,7 +415,7 @@ def compare_series(df_wide, series_cols, title, height=None, cumulative=False):
             marker=dict(size=5),
         ))
     fig.update_layout(**_layout(title, height))
-    return fig
+    return theme.style(fig)
 
 
 def pie_breakdown(labels, values, title, height=None):
@@ -428,7 +430,7 @@ def pie_breakdown(labels, values, title, height=None):
     layout["legend"] = dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02,
                              bgcolor="rgba(0,0,0,0)")
     fig.update_layout(showlegend=True, **layout)
-    return fig
+    return theme.style(fig)
 
 
 def ranking_bar(labels, values, title, height=None, top_n=8):
@@ -451,7 +453,7 @@ def ranking_bar(labels, values, title, height=None, top_n=8):
     layout["xaxis"]["title"] = None
     layout["margin"] = dict(l=10, r=40, t=50, b=30)
     fig.update_layout(showlegend=False, **layout)
-    return fig
+    return theme.style(fig)
 
 
 def destination_heatmap(matrix_df, title, height=None):
@@ -471,7 +473,7 @@ def destination_heatmap(matrix_df, title, height=None):
     layout["margin"]["t"] = 90
     layout["title"]["y"] = 0.98
     fig.update_layout(**layout)
-    return fig
+    return theme.style(fig)
 
 
 def long_run_line(dates, values, title, height=None):
@@ -481,7 +483,7 @@ def long_run_line(dates, values, title, height=None):
         fillcolor="rgba(61,93,133,0.08)",
     ))
     fig.update_layout(showlegend=False, **_layout(title, height))
-    return fig
+    return theme.style(fig)
 
 
 def share_line(x, y_pct, title, height=None):
@@ -492,7 +494,7 @@ def share_line(x, y_pct, title, height=None):
     layout = _layout(title, height)
     layout["yaxis"]["ticksuffix"] = "%"
     fig.update_layout(showlegend=False, **layout)
-    return fig
+    return theme.style(fig)
 
 
 def monthly_mix_bars(dates, series_a, series_b, share_pct, title, height=None,
@@ -510,7 +512,7 @@ def monthly_mix_bars(dates, series_a, series_b, share_pct, title, height=None,
     layout["yaxis2"] = dict(overlaying="y", side="right", range=[0, 100], ticksuffix="%",
                              gridcolor=GRID, tickfont=dict(color=MUTED), showgrid=False)
     fig.update_layout(**layout)
-    return fig
+    return theme.style(fig)
 
 
 def ytd_comparison(df_wide, year_cols, kind="flow", title=None, height=None):
@@ -533,4 +535,4 @@ def ytd_comparison(df_wide, year_cols, kind="flow", title=None, height=None):
     base_title = title or ("YTD Comparison" if kind == "flow" else "Period Comparison")
     layout = _layout(f"{base_title} ({value_col})", height)
     fig.update_layout(showlegend=False, **layout)
-    return fig
+    return theme.style(fig)

@@ -35,15 +35,6 @@ div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownConta
 [class*='st-key-nav'] div[role="radiogroup"] label:hover div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; }
 [class*='st-key-nav'] div[role="radiogroup"] label:has(input:checked) { background: transparent !important; border-bottom: 2.5px solid #1f8a9c !important; }
 [class*='st-key-nav'] div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #0a2463 !important; font-weight: 700; }
-/* tabs that hold an entry grid: light orange (This week on IVC, Entry Table in Forestero : Monthly) */
-.st-key-nav_ivc div[role="radiogroup"] label:first-of-type div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
-.st-key-nav_ivc div[role="radiogroup"] label:first-of-type:has(input:checked) { border-bottom-color: #e8913f !important; }
-.st-key-nav_ivc div[role="radiogroup"] label:first-of-type:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #b8621a !important; }
-.st-key-moview div[role="radiogroup"] label:nth-of-type(2) div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
-.st-key-nav_pod div[role="radiogroup"] label:nth-of-type(2) div[data-testid="stMarkdownContainer"] p { color: #d07a2c !important; }
-.st-key-nav_pod div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { border-bottom-color: #e8913f !important; }
-.st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) { background: #f6c99e !important; }
-.st-key-moview div[role="radiogroup"] label:nth-of-type(2):has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #7a3b08 !important; }
 /* sidebar */
 [data-testid="stSidebar"] { background: linear-gradient(180deg, #0a2463 0%, #13306f 100%) !important; border-right: none !important; }
 [data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding-top: 1.2rem; }
@@ -74,13 +65,16 @@ div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownConta
 import monthly
 import projection
 import season
+import theme
+
+theme.apply()
 
 ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
 PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"],
          monthly.COMBINED: ["Forestero : Monthly"]}
 
 with st.sidebar:
-    st.markdown("<div class='sb-brand'>Cocoa Fundamentals</div><div class='sb-caption'>Ivory Coast &middot; Ghana</div>",
+    st.markdown("<div class='sb-brand'>Cocoa Fundamentals</div><div class='sb-caption'>Ivory Coast &middot; Ghana</div><div class='sb-rule'></div>",
                 unsafe_allow_html=True)
     with st.container(key="section"):
         section = st.radio("Section", ["Arrivals", "Pod Counts", "Study"], label_visibility="collapsed", key="section_pick")

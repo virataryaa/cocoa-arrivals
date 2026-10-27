@@ -5,6 +5,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import theme
+
 import projection
 
 DB = Path(__file__).resolve().parent.parent / "Database"
@@ -65,7 +67,7 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
         legend=dict(orientation="h", x=0, y=-0.2, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
         margin=dict(t=10, b=10, l=10, r=10),
     )
-    return fig
+    return theme.style(fig)
 
 
 TABLE_CSS = """

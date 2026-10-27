@@ -7,6 +7,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import theme
+
 import ghstore as gh
 import projection
 import season
@@ -59,7 +61,7 @@ def _layout(fig, height):
         xaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578"),
         yaxis=dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578", tickformat=",", hoverformat=",.0f", rangemode="tozero"),
         legend=dict(orientation="h", x=0, y=-0.1, xanchor="left", yanchor="top", font=dict(size=10), bgcolor="rgba(0,0,0,0)"))
-    return fig
+    return theme.style(fig)
 
 
 def years_of(origin: str) -> list:

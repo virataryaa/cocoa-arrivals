@@ -107,6 +107,27 @@ CSS = """
   .stButton > button, .stDownloadButton > button { border-radius:999px; border:1px solid rgba(43,74,138,.18); background:linear-gradient(180deg,#ffffff,#eef2fa);
     color:#0a2463; font-weight:600; box-shadow:0 1px 2px rgba(10,36,99,.06); transition:box-shadow .18s, transform .18s; }
   .stButton > button:hover, .stDownloadButton > button:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(10,36,99,.14); border-color:rgba(43,74,138,.35); color:#0a2463; }
+  /* every HTML table (monthly, history, pod seasonal): the compact icy look of the Weekly Arrivals table */
+  [data-testid="stMain"] .mt-wrap, [data-testid="stMain"] .pj-wrap, [data-testid="stMain"] .unica-table-wrap { border:0 !important; border-radius:12px !important;
+    background:#ffffff; box-shadow:0 1px 2px rgba(10,36,99,.05), 0 6px 20px rgba(10,36,99,.08); }
+  [data-testid="stMain"] .mt, [data-testid="stMain"] .pj, [data-testid="stMain"] .unica-table { border-collapse:separate !important; border-spacing:0;
+    font-size:10px !important; font-variant-numeric:tabular-nums; }
+  [data-testid="stMain"] .mt th, [data-testid="stMain"] .pj th, [data-testid="stMain"] .unica-table th {
+    background:linear-gradient(180deg,#f7f9fd,#e9eff9) !important; color:#1e3a6e !important; font-family:'Plus Jakarta Sans','Inter',sans-serif !important;
+    font-size:8.5px !important; font-weight:700 !important; letter-spacing:.06em; text-transform:uppercase; padding:3px 6px !important; text-align:center !important;
+    line-height:1.2 !important; border-bottom:1px solid rgba(43,74,138,.14) !important; }
+  [data-testid="stMain"] .mt td, [data-testid="stMain"] .pj td, [data-testid="stMain"] .unica-table td {
+    padding:0 6px !important; text-align:center !important; line-height:1.2 !important; border-bottom:1px solid rgba(43,74,138,.05) !important; color:#1a1a2e; }
+  [data-testid="stMain"] .mt td.cy, [data-testid="stMain"] .pj td.wk, [data-testid="stMain"] .unica-table td.period-col { font-weight:700 !important;
+    font-style:normal !important; color:#1e3a6e !important; background:#f6f8fd; text-align:center !important; }
+  [data-testid="stMain"] .pj tr.h2 th { background:#eef2fa !important; color:#5a6688 !important; font-weight:600 !important; }
+  [data-testid="stMain"] .pj th.p1 { color:#1f8a9c !important; border-bottom:2px solid #1f8a9c !important; }
+  [data-testid="stMain"] .pj th.p2 { color:#0a2463 !important; border-bottom:2px solid #0a2463 !important; }
+  [data-testid="stMain"] .pj th.p3 { color:#8a5a12 !important; border-bottom:2px solid #8a5a12 !important; }
+  [data-testid="stMain"] .pj th.p4 { color:#6b4a8a !important; border-bottom:2px solid #6b4a8a !important; }
+  [data-testid="stMain"] .unica-table caption { text-align:center !important; font-family:'Plus Jakarta Sans','Inter',sans-serif; font-size:11px !important;
+    font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#1e3a6e !important; padding:6px 0 !important; }
+  [data-testid="stMain"] .mt tr:last-child td, [data-testid="stMain"] .unica-table tr:last-child td { border-bottom:0 !important; }
 </style>
 """
 

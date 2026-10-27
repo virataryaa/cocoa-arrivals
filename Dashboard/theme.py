@@ -40,6 +40,12 @@ CSS = """
   .st-key-section div[role="radiogroup"] label:has(input:checked) { background:linear-gradient(180deg, #2b4a8a, #1e3a6e) !important;
     border-left:0 !important; box-shadow:0 2px 8px rgba(30,58,110,.28), inset 0 1px 0 rgba(255,255,255,.18) !important; }
   .st-key-section div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color:#ffffff !important; font-weight:700; }
+  /* Data Entry (4th section): dark orange so it reads apart from the view sections */
+  .st-key-section div[role="radiogroup"] label:nth-of-type(4) div[data-testid="stMarkdownContainer"] p { color:#b8560a !important; }
+  .st-key-section div[role="radiogroup"] label:nth-of-type(4):hover { background:rgba(194,87,12,.10) !important; }
+  .st-key-section div[role="radiogroup"] label:nth-of-type(4):has(input:checked) { background:linear-gradient(180deg, #d9650f, #b8560a) !important;
+    box-shadow:0 2px 8px rgba(184,86,10,.35), inset 0 1px 0 rgba(255,255,255,.2) !important; }
+  .st-key-section div[role="radiogroup"] label:nth-of-type(4):has(input:checked) div[data-testid="stMarkdownContainer"] p { color:#ffffff !important; }
   /* origin switch (top right) */
   .st-key-main div[role="radiogroup"] { border-radius:999px !important; padding:4px !important; gap:2px !important; }
   .st-key-main div[role="radiogroup"] label { border-radius:999px !important; padding:6px 18px !important; }

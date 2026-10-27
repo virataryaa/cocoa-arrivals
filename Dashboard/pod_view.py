@@ -24,6 +24,7 @@ ENTRY_CLASSES = ["1. Tiny", "2.1 Small-1", "2.2 Small-2", "2. Small", "3. Large"
 SHORT = {c: c.split(" ", 1)[1] if c[0].isdigit() else c.title() for c in ENTRY_CLASSES}   # "2.1 Small-1" -> "Small-1"
 N_MONTHS = 6                                            # grid rows: the coming month + the last 5 reported
 PANEL_H = 300
+HIDE_YEARS = ["22/23"]                                   # crop years left out of the cumulative view (by request)
 MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 CSS = """
@@ -68,7 +69,7 @@ def render_overview():
     with row1[0]:
         st.plotly_chart(monthly_comparison(df_wide, year_cols, title=f"{ctx} — Monthly Counts", height=PANEL_H), width="stretch")
     with row1[1]:
-        cum_year_cols = [y for y in year_cols if y != "22/23"]                 # 22/23 dropped from this view by request
+        cum_year_cols = [y for y in year_cols if y not in HIDE_YEARS]
         st.plotly_chart(cumulative_forecast(df_wide, cum_year_cols, title=f"{ctx} — Cumulative Counts", height=PANEL_H), width="stretch")
     row2 = st.columns(2)
     with row2[0]:
@@ -187,7 +188,10 @@ def save_pod(changes: dict):
                                                              "COUNTRY": country}])], ignore_index=True)
         return _pod_csv(frame), None
 
-    new_text, _ = gh.commit(POD_PATH, change, msg)
+    if projection.entry_enabled():
+        new_text, _ = gh.commit(POD_PATH, change, msg)
+    else:                                                # local run: write the file directly
+        new_text, _ = change(DATA_PATH.read_text(encoding="utf-8"))
     DATA_PATH.write_text(new_text, encoding="utf-8", newline="")   # show it now, before Cloud redeploys
     load_raw.clear()
 
@@ -222,8 +226,7 @@ def render_entry():
         for n in notes:
             st.warning(n)
         b = st.columns([1.3, 6])
-        ok = projection.entry_enabled()
-        if b[0].button("Save", type="primary", width="stretch", disabled=not (n_changed and override and ok), key="pod_save"):
+        if b[0].button("Save", type="primary", width="stretch", disabled=not (n_changed and override), key="pod_save"):
             try:
                 save_pod(changes)
             except gh.GitHubError as ex:
@@ -231,9 +234,8 @@ def render_entry():
             else:
                 st.session_state["pod_ver"] = ver + 1
                 st.rerun()
-        if not ok:
-            b[1].markdown("<div style='color:#c94a4a;font-size:12px;margin-top:8px'>Saving is off: add github_token in Streamlit Secrets "
-                          "(without it nothing is stored).</div>", unsafe_allow_html=True)
+        if not projection.entry_enabled():
+            b[1].markdown("<div class='card-desc' style='margin-top:8px'>Local run: saves go straight to the CSV in Database/ (no GitHub).</div>", unsafe_allow_html=True)
         elif n_changed:
             b[1].markdown(f"<div class='card-desc' style='margin-top:8px'>{n_changed} cell(s) changed, not saved yet.</div>",
                           unsafe_allow_html=True)

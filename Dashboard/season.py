@@ -12,18 +12,36 @@ import projection
 DB = Path(__file__).resolve().parent.parent / "Database"
 CROP_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
 WEEKS_IN_MONTH = [4] * 12                               # every month = 4 weeks -> weeks 1-48; weeks 49-51 have no Forestero value
-# (label, column, colour, dash, width) - same look as the desk Excel
-# (label, column, colour, dash, width, shown) - shown=False starts hidden; a click on its legend entry brings it back
-SERIES = [
-    ("Manual (26/27)", "etg_2627", "#0a2463", "solid", 3.5, True),
-    ("Eikon (26/27)", "eikon_2627", "#e07b39", "solid", 3, True),
-    ("Forestero (26/27)", "fo_2627", "#9c7a00", "dash", 2.5, True),
-    ("Manual (25/26)", "etg_2526", "#2e75b6", "solid", 2.5, True),
-    ("Eikon (25/26)", "eikon_2526", "#c00000", "solid", 2.5, True),
-    ("Forestero (25/26)", "fo_2526", "#d9d9d9", "dash", 2.5, True),
-    ("Manual (24/25)", "etg_2425", "#a6a6a6", "solid", 2.5, False),
-    ("Eikon (24/25)", "eikon_2425", "#843c0c", "dot", 2.5, False),
-]
+
+
+def start_year() -> int:
+    """Start year of the running crop year (Oct-Sep): 2026 for 26/27."""
+    t = pd.Timestamp.today()
+    return t.year if t.month >= 10 else t.year - 1
+
+
+def tag(y: int) -> str:
+    return f"{y % 100:02d}{(y + 1) % 100:02d}"            # 2026 -> "2627"
+
+
+def label(y: int) -> str:
+    return f"{y % 100:02d}/{(y + 1) % 100:02d}"           # 2026 -> "26/27"
+
+
+def series_list() -> list:
+    """(label, column, colour, dash, width, shown) for the running crop year and the two before it; shown=False starts hidden."""
+    y = start_year()
+    c, p, q = tag(y), tag(y - 1), tag(y - 2)
+    return [
+        (f"Manual ({label(y)})", f"etg_{c}", "#0a2463", "solid", 3.5, True),
+        (f"Eikon ({label(y)})", f"eikon_{c}", "#e07b39", "solid", 3, True),
+        (f"Forestero ({label(y)})", f"fo_{c}", "#9c7a00", "dash", 2.5, True),
+        (f"Manual ({label(y - 1)})", f"etg_{p}", "#2e75b6", "solid", 2.5, True),
+        (f"Eikon ({label(y - 1)})", f"eikon_{p}", "#c00000", "solid", 2.5, True),
+        (f"Forestero ({label(y - 1)})", f"fo_{p}", "#d9d9d9", "dash", 2.5, True),
+        (f"Manual ({label(y - 2)})", f"etg_{q}", "#a6a6a6", "solid", 2.5, False),
+        (f"Eikon ({label(y - 2)})", f"eikon_{q}", "#843c0c", "dot", 2.5, False),
+    ]
 
 
 @st.cache_data(ttl=600)
@@ -45,19 +63,20 @@ def forestero_weekly(monthly: pd.DataFrame, origin: str, typ: str, crop_year: st
 
 def chart(df: pd.DataFrame, cumulative: bool, height: int):
     fig = go.Figure()
-    for label, col, colour, dash, width, shown in SERIES:
+    for name, col, colour, dash, width, shown in series_list():
         if col not in df or df[col].notna().sum() == 0:
             continue
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
-        live = col.endswith("2627") and dash != "dash"           # this season: markers, so a single week is visible too
-        fig.add_scatter(x=df.week, y=y, name=label, mode="lines+markers" if live else "lines", connectgaps=False,
+        live = col.endswith(tag(start_year())) and dash != "dash"           # this season: markers, so a single week is visible too
+        fig.add_scatter(x=df.week, y=y, name=name, mode="lines+markers" if live else "lines", connectgaps=False,
                         marker=dict(size=7, color=colour),
                         line=dict(color=colour, dash=dash, width=width, shape="hv" if (dash == "dash" and not cumulative) else "linear"),
                         hovertemplate="%{y:,.0f}", visible=True if shown else "legendonly")
-    if "etg_2627_proj" in df and df["etg_2627_proj"].any():          # the running week: projected, not final
-        y = df["etg_2627"].cumsum(skipna=True).where(df["etg_2627"].notna()) if cumulative else df["etg_2627"]
-        m = df["etg_2627_proj"]
-        fig.add_scatter(x=df.week[m], y=y[m], name="Manual (26/27) projected", mode="markers",
+    cur = tag(start_year())
+    if f"etg_{cur}_proj" in df and df[f"etg_{cur}_proj"].any():          # the running week: projected, not final
+        y = df[f"etg_{cur}"].cumsum(skipna=True).where(df[f"etg_{cur}"].notna()) if cumulative else df[f"etg_{cur}"]
+        m = df[f"etg_{cur}_proj"]
+        fig.add_scatter(x=df.week[m], y=y[m], name=f"Manual ({label(start_year())}) projected", mode="markers",
                         marker=dict(symbol="circle-open", size=11, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
     fig.update_layout(
         template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -83,7 +102,7 @@ TABLE_CSS = """
 
 
 def table_html(df: pd.DataFrame, cumulative: bool) -> str:
-    cols = [(label, col) for label, col, *_ in SERIES if col in df and df[col].notna().any()]
+    cols = [(name, col) for name, col, *_ in series_list() if col in df and df[col].notna().any()]
     data = {}
     for label, col in cols:
         data[label] = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
@@ -112,12 +131,17 @@ def render(origin: str = "IVC"):
     with oc[1]:
         view = st.radio("View", ["Charts", "Table"], horizontal=True, label_visibility="collapsed", key="season_view")
     df = weekly.copy()
-    for col, cy in [("fo_2526", "25/26"), ("fo_2627", "26/27")]:
-        df[col] = df.week.map(forestero_weekly(monthly, origin, typ, cy))
-    live = projection.crop_series(projection.build(), projection.load_eikon(), 2026)     # 26/27 from the entry data
-    df["etg_2627"] = df.week.map(live.set_index("week")["etg"])
-    df["eikon_2627"] = df.week.map(live.set_index("week")["eikon"])
-    df["etg_2627_proj"] = df.week.map(live.set_index("week")["proj"]).fillna(False).astype(bool)
+    y = start_year()
+    for yy in (y - 1, y):
+        df[f"fo_{tag(yy)}"] = df.week.map(forestero_weekly(monthly, origin, typ, label(yy)))
+    for yy in (y - 1, y):                                  # the running year (and the one before, if weekly.csv lacks it) come from the entry data
+        if yy != y and f"etg_{tag(yy)}" in df:
+            continue
+        live = projection.crop_series(projection.build(), projection.load_eikon(), yy).set_index("week")
+        df[f"etg_{tag(yy)}"] = df.week.map(live["etg"])
+        df[f"eikon_{tag(yy)}"] = df.week.map(live["eikon"])
+        if yy == y:
+            df[f"etg_{tag(yy)}_proj"] = df.week.map(live["proj"]).fillna(False).astype(bool)
 
     if view == "Table":
         with oc[2]:

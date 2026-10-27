@@ -34,13 +34,13 @@ def series_list() -> list:
     c, p, q = tag(y), tag(y - 1), tag(y - 2)
     return [
         (f"Manual ({label(y)})", f"etg_{c}", "#0a2463", "solid", 3, True),
-        (f"Eikon ({label(y)})", f"eikon_{c}", "#c98a1f", "solid", 2.2, True),
-        (f"Forestero ({label(y)})", f"fo_{c}", "#1f8a9c", "dash", 2, True),
-        (f"Manual ({label(y - 1)})", f"etg_{p}", "#7b93c4", "solid", 1.8, True),
-        (f"Eikon ({label(y - 1)})", f"eikon_{p}", "#d9a15a", "solid", 1.6, True),
-        (f"Forestero ({label(y - 1)})", f"fo_{p}", "#9fc9d1", "dash", 1.6, True),
-        (f"Manual ({label(y - 2)})", f"etg_{q}", "#b4bccd", "solid", 1.5, False),
-        (f"Eikon ({label(y - 2)})", f"eikon_{q}", "#cdb89a", "dot", 1.5, False),
+        (f"Eikon ({label(y)})", f"eikon_{c}", "#f08a00", "solid", 2.2, True),
+        (f"Forestero ({label(y)})", f"fo_{c}", "#12a38a", "dash", 2.2, True),
+        (f"Manual ({label(y - 1)})", f"etg_{p}", "#8e44ad", "solid", 1.8, True),
+        (f"Eikon ({label(y - 1)})", f"eikon_{p}", "#d62f3a", "solid", 1.8, True),
+        (f"Forestero ({label(y - 1)})", f"fo_{p}", "#6c7a89", "dot", 2, True),
+        (f"Manual ({label(y - 2)})", f"etg_{q}", "#9aa5b8", "solid", 1.5, False),
+        (f"Eikon ({label(y - 2)})", f"eikon_{q}", "#8a5a12", "dot", 1.5, False),
     ]
 
 
@@ -77,15 +77,15 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
         is_cur = col.endswith(cur)
         main = col == f"etg_{cur}"
-        stepped = dash == "dash" and not cumulative
+        stepped = dash != "solid" and not cumulative and name.startswith("Forestero")
         fig.add_scatter(x=df.week, y=y, name=name, mode="lines", connectgaps=False,
                         line=dict(color=colour, dash=dash, width=width + (0.6 if main else 0), shape="hv" if stepped else "linear"),
                         fill="tozeroy" if main else None, fillcolor=_rgba(colour, 0.07) if main else None,
                         legendgroup=name, hovertemplate="%{y:,.1f}", visible=True if shown else "legendonly")
         if is_cur and dash != "dash" and y.notna().any():              # this season: a dot + value on the latest week
             last = y.last_valid_index()
-            fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers+text", showlegend=False, legendgroup=name, hoverinfo="skip",
-                            text=[f"{y[last]:,.1f}"], textposition="top center", textfont=dict(size=11, color=colour),
+            fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers+text" if main else "markers", showlegend=False, legendgroup=name,
+                            hoverinfo="skip", text=[f"{y[last]:,.1f}"] if main else None, textposition="top center", textfont=dict(size=11, color=colour),
                             marker=dict(size=9, color=colour, line=dict(width=2, color="#ffffff")))
     if f"etg_{cur}_proj" in df and df[f"etg_{cur}_proj"].any():          # the running week: projected, not final
         y = df[f"etg_{cur}"].cumsum(skipna=True).where(df[f"etg_{cur}"].notna()) if cumulative else df[f"etg_{cur}"]
@@ -100,7 +100,7 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int):
                    showspikes=True, spikemode="across", spikecolor="rgba(10,36,99,0.25)", spikethickness=1, spikedash="dot"),
         yaxis=dict(gridcolor="rgba(10,36,99,0.07)", showline=False, zeroline=False, ticks="", tickformat=",", hoverformat=",.1f",
                    rangemode="tozero", title=dict(text="kt", font=dict(size=11, color="#7a86a8"))),
-        legend=dict(orientation="h", x=0, y=1.14, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)", itemsizing="constant"),
+        legend=dict(orientation="h", x=0, y=1.14, xanchor="left", yanchor="top", font=dict(size=11), bgcolor="rgba(0,0,0,0)", itemsizing="trace", itemwidth=44),
     )
     return theme.style(fig)
 

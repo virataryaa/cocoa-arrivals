@@ -105,7 +105,8 @@ def table_html(origin: str, typ: str, cumulative: bool = False) -> str:
     shown = t.cumsum(axis=1, skipna=True).where(t.notna()) if cumulative else t
     for m in CROP_MONTHS:
         col = shown[m]
-        rows.append(f"<tr><td class='cy'>{m}</td>" + "".join(_cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
+        rows.append(f"<tr><td class='cy'>{m}</td>" + "".join((f"<td>{col[cy]:,.0f}</td>" if pd.notna(col[cy]) else "<td class='na'>-</td>") if cumulative
+                                                                    else _cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
     if not cumulative:
         tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
                       for cy in years)

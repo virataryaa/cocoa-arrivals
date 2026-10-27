@@ -98,7 +98,7 @@ def season_years() -> list:
     return [label(y - i) for i in range(6)]                # newest first
 
 
-def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = None, sources: list | None = None):
+def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = None, sources: list | None = None, title: str = ""):
     fig = go.Figure()
     cur = tag(start_year())
     years = years or season_years()[:2]
@@ -114,20 +114,12 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         width = (3 if rank[lab] == 0 else 2.2) * wf
         name = f"{src} {lab}"
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
-        is_cur = col.endswith(cur)
         main = col == f"etg_{cur}"
         stepped = src == "Forestero" and not cumulative
         fig.add_scatter(x=df.week, y=y, name=name, mode="lines", connectgaps=False,
                         line=dict(color=colour, dash=dash_, width=width + (0.6 if main else 0), shape="hv" if stepped else "spline", smoothing=0.45),
                         fill="tozeroy" if main else None, fillcolor=_rgba(colour, 0.09) if main else None,
                         legendgroup=name, hovertemplate="%{y:,.1f}")
-        if is_cur and src != "Forestero" and y.notna().any():              # this season: a dot + value on the latest week
-            last = y.last_valid_index()
-            fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers", showlegend=False, legendgroup=name, hoverinfo="skip",
-                            marker=dict(size=20, color=_rgba(colour, 0.18)))
-            fig.add_scatter(x=[df.week[last]], y=[y[last]], mode="markers+text" if main else "markers", showlegend=False, legendgroup=name,
-                            hoverinfo="skip", text=[f"{y[last]:,.1f}"] if main else None, textposition="top center", textfont=dict(size=11, color=colour),
-                            marker=dict(size=9, color=colour, line=dict(width=2, color="#ffffff")))
     if label(start_year()) in rank and "Manual" in sources and f"etg_{cur}_proj" in df and df[f"etg_{cur}_proj"].any():          # the running week: projected, not final
         y = df[f"etg_{cur}"].cumsum(skipna=True).where(df[f"etg_{cur}"].notna()) if cumulative else df[f"etg_{cur}"]
         m = df[f"etg_{cur}_proj"]
@@ -215,12 +207,8 @@ def render(origin: str = "IVC"):
     pick = st.columns([2.2, 2.2, 4], vertical_alignment="center")
     years = pick[0].multiselect("Crop year", season_years(), default=season_years()[:2], key="season_years")
     sources = pick[1].multiselect("Source", SOURCES, default=SOURCES, key="season_sources")
-    with st.container():
-        st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>", unsafe_allow_html=True)
-        st.plotly_chart(chart(df, False, 320, years, sources), width="stretch")
-    with st.container():
-        st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
-        st.plotly_chart(chart(df, True, 320, years, sources), width="stretch")
+    st.plotly_chart(chart(df, False, 330, years, sources, f"{origin} — Weekly arrivals kt"), width="stretch")
+    st.plotly_chart(chart(df, True, 330, years, sources, f"{origin} — Cumulative arrivals kt"), width="stretch")
     with st.container():
         st.markdown(f"<div class='card-title'>Weekly arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
         st.markdown(TABLE_CSS + table_html(df, False), unsafe_allow_html=True)

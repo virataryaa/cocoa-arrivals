@@ -1,4 +1,8 @@
 """COT_ALL look (light glass, navy) for the Cocoa app: fonts, glass sidebar, pill radios, glass dropdowns, chart cards."""
+import re
+
+import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 GRID = "rgba(10,36,99,0.08)"
@@ -88,7 +92,10 @@ CSS = """
     font-weight:600 !important; color:#1e3a6e !important; }
   /* no frames: charts, cards and tables sit straight on the page */
   [data-testid="stVerticalBlockBorderWrapper"] { border:0 !important; box-shadow:none !important; background:transparent !important; }
-  [data-testid="stMain"] [data-testid="stPlotlyChart"] { background:transparent; border:0; box-shadow:none; padding:0; }
+  [data-testid="stMain"] [data-testid="stPlotlyChart"] { background:#ffffff; border:1px solid rgba(43,74,138,.10); border-radius:18px; padding:6px 8px;
+    overflow:hidden; box-shadow:0 1px 2px rgba(10,36,99,.04), 0 4px 14px rgba(30,58,110,.06), inset 0 1px 0 #ffffff; transition:box-shadow .2s; }
+  [data-testid="stMain"] [data-testid="stPlotlyChart"] .js-plotly-plot, [data-testid="stMain"] [data-testid="stPlotlyChart"] .main-svg { border-radius:16px; }
+  [data-testid="stMain"] [data-testid="stPlotlyChart"]:hover { box-shadow:0 1px 2px rgba(10,36,99,.05), 0 8px 20px rgba(30,58,110,.09), inset 0 1px 0 #ffffff; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) { background:transparent !important; border:0 !important;
     box-shadow:none !important; border-radius:0; }
   .app-title, .page-title { font-family:'Plus Jakarta Sans','Inter',sans-serif; letter-spacing:-.005em; }
@@ -109,13 +116,83 @@ def apply():
     st.markdown(CSS, unsafe_allow_html=True)
 
 
-def style(fig):
-    """COT chart base: white template, transparent bg, navy-grey grid, same font."""
-    if fig.layout.title.text:                                       # chart titles: centred caps like the card headers
-        fig.update_layout(title=dict(text=str(fig.layout.title.text).upper(), x=0.5, xanchor="center",
-                                     font=dict(family=FONT, size=12, color="#1e3a6e")))
-    fig.update_layout(template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font=dict(family=FONT, color="#1a1a2e", size=11))
-    fig.update_xaxes(gridcolor=GRID, linecolor="rgba(0,0,0,0.08)", tickfont=dict(size=10, color=AXIS))
-    fig.update_yaxes(gridcolor=GRID, linecolor="rgba(0,0,0,0.08)", zerolinecolor="rgba(0,0,0,0.12)", tickfont=dict(size=10, color=AXIS))
+UNITS = ("k lots", "M USD", "kt", "kg", "%")
+TITLE_FONT = "Plus Jakarta Sans, Inter, -apple-system, sans-serif"
+
+
+def _rgba(hexc: str, a: float) -> str:
+    h = hexc.lstrip("#")
+    return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{a})"
+
+
+def _x(v):
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
+
+def style(fig, dots="auto"):
+    """The COT_ALL chart look: title inside the chart ("TAG - Name unit" -> grey tag, bold name, grey unit), legend top-left,
+    light axes, smooth lines (stepped lines stay stepped), and - for up to 4 lines - a soft glow plus a dot and value at the latest point.
+    dots: "auto" (on for <= 4 lines on one axis), True or False."""
+    t = re.sub(r"<[^>]+>", "", fig.layout.title.text or "")
+    tag, _, name = t.partition(" — ")
+    if not name:
+        tag, name = "", t
+    unit = next((u for u in UNITS if name.endswith(" " + u)), "")
+    name = name[: -len(unit) - 1] if unit else name
+    title = ((f"<span style='color:#94a3b8;font-size:10.5px'>{tag}</span>&nbsp;&nbsp;" if tag else "") + f"<b>{name}</b>"
+             + (f"&nbsp;&nbsp;<span style='color:#94a3b8;font-size:10.5px'>{unit}</span>" if unit else "")) if name else None
+
+    lines = [tr for tr in fig.data if getattr(tr, "type", "") == "scatter" and "lines" in (tr.mode or "")
+             and tr.showlegend is not False and not (tr.fill and tr.fill != "none")]
+    axes = {getattr(tr, "yaxis", None) or "y" for tr in fig.data}
+    show_dots = bool(lines) and len(axes) == 1 and (dots is True or (dots == "auto" and len(lines) <= 4))
+
+    fig.update_layout(
+        template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family=FONT, size=11, color="#334155"),
+        margin=dict(l=46, r=48 if show_dots else 24, t=60 if title else 40, b=40 if fig.layout.xaxis.title.text else 30),
+        legend=dict(orientation="h", x=0, xanchor="left", y=1.0, yanchor="bottom", font=dict(size=10, color="#475569"),
+                    bgcolor="rgba(0,0,0,0)", itemwidth=30),
+        hoverlabel=dict(bgcolor="rgba(255,255,255,0.96)", bordercolor="rgba(43,74,138,0.18)", font=dict(family=FONT, size=11, color="#0a2463")))
+    if title:
+        fig.update_layout(title=dict(text=title, x=0.01, y=0.97, font=dict(family=TITLE_FONT, size=13.5, color="#0a2463")))
+    fig.update_xaxes(showgrid=False, showline=True, linecolor="rgba(15,23,42,0.12)", tickfont=dict(size=10, color="#64748b"), ticks="")
+    fig.update_yaxes(gridcolor="rgba(15,23,42,0.07)", zeroline=True, zerolinecolor="rgba(15,23,42,0.20)", zerolinewidth=1,
+                     tickfont=dict(size=10, color="#64748b"), showline=False)
+
+    glows, marks, labs = [], [], []
+    for tr in lines:
+        col = (tr.line.color or "") if tr.line else ""
+        if tr.line is None or tr.line.shape != "hv":
+            tr.update(line=dict(shape="spline", smoothing=0.5))
+        if not (show_dots and str(col).startswith("#")):
+            continue
+        glows.append(go.Scatter(x=tr.x, y=tr.y, mode="lines", showlegend=False, hoverinfo="skip",
+                                line=dict(color=_rgba(col, .06), width=5, shape=tr.line.shape or "spline", smoothing=0.5)))
+        y = pd.Series(tr.y).astype(float)
+        if y.notna().any():
+            i = int(y.last_valid_index())
+            marks.append(go.Scatter(x=[tr.x[i]], y=[y.iloc[i]], mode="markers", showlegend=False, hoverinfo="skip", cliponaxis=False,
+                                    marker=dict(size=8, color=col, line=dict(color="#ffffff", width=2))))
+            labs.append((tr.x[i], float(y.iloc[i]), col))
+    if labs:                                                 # value labels at the line ends, pushed apart when close
+        ys = [v for tr in fig.data if getattr(tr, "y", None) is not None for v in pd.Series(tr.y).astype(float).dropna()]
+        rng = (max(ys) - min(ys)) or 1.0
+        ppu = ((fig.layout.height or 300) - 60 - 30) / rng
+        fmt = ",.0f" if rng >= 50 else ",.1f"
+        order = sorted(range(len(labs)), key=lambda k: labs[k][1])
+        pos, last_px = {}, None
+        for k in order:
+            px_ = labs[k][1] * ppu
+            if last_px is not None and px_ - last_px < 12:
+                px_ = last_px + 12
+            pos[k], last_px = px_, px_
+        for k, (xv, yv, colr) in enumerate(labs):
+            fig.add_annotation(x=_x(xv), y=yv, text=format(yv, fmt), showarrow=False, xanchor="left", xshift=7,
+                               yshift=pos[k] - yv * ppu, font=dict(family=TITLE_FONT, size=10, color=colr))
+    n0 = len(fig.data)
+    for g in glows + marks:
+        fig.add_trace(g)
+    d = list(fig.data)                                       # glows first, then the real series, then the end dots
+    fig.data = tuple(d[n0:n0 + len(glows)] + d[:n0] + d[n0 + len(glows):])
     return fig

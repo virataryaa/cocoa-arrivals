@@ -72,6 +72,7 @@ def years_of(origin: str) -> list:
 def line_chart(origin: str, typ: str, cumulative: bool, last_n: int):
     """One Forestero series (Stat or Tree), one line per crop year."""
     fig = go.Figure()
+    fig.update_layout(title=dict(text=f"{origin} — {typ} {'cumulative' if cumulative else 'monthly'} arrivals kt"))
     years = years_of(origin)
     years = years[-last_n:] if last_n else years
     t = table(origin, typ)
@@ -275,12 +276,8 @@ def render(origin: str):
         last_n = {"Last 5": 5, "All": 0}[st.radio("Years", ["Last 5", "All"], horizontal=True, label_visibility="collapsed", key=f"mo_n_{origin}")]
     for typ in TYPES:                                    # 2 x 2: Stat on top, Tree underneath
         left, right = st.columns(2)
-        with left, st.container(border=True):
-            st.markdown(f"<div class='card-title'>{typ} - monthly arrivals {origin}</div>", unsafe_allow_html=True)
-            st.plotly_chart(line_chart(origin, typ, False, last_n), width="stretch")
-        with right, st.container(border=True):
-            st.markdown(f"<div class='card-title'>{typ} - cumulative arrivals {origin}</div>", unsafe_allow_html=True)
-            st.plotly_chart(line_chart(origin, typ, True, last_n), width="stretch")
+        left.plotly_chart(line_chart(origin, typ, False, last_n), width="stretch")
+        right.plotly_chart(line_chart(origin, typ, True, last_n), width="stretch")
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Monthly arrivals {origin} - all crop years</div>", unsafe_allow_html=True)
         for col, typ in zip(st.columns(2), TYPES):       # Stat and Tree side by side

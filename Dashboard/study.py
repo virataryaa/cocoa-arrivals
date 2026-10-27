@@ -121,7 +121,7 @@ def combined_chart(p, arr_act, arr_est, implied, est_label, lag):
     fig.update_yaxes(title_text="pods per tree", row=1, col=1, gridcolor="rgba(10,36,99,0.08)", rangemode="tozero")
     fig.update_yaxes(title_text="arrivals, kt", row=2, col=1, gridcolor="rgba(10,36,99,0.08)", tickformat=",", rangemode="tozero")
     fig.update_xaxes(dtick="M3", tickformat="%b-%y", gridcolor="rgba(10,36,99,0.05)", range=[start - pd.Timedelta(days=20), end + pd.Timedelta(days=20)])
-    return theme.style(fig)
+    return theme.style(fig, dots=False)
 
 
 def lag_chart(lt: pd.DataFrame, best: int):
@@ -137,7 +137,7 @@ def lag_chart(lt: pd.DataFrame, best: int):
                       margin=dict(t=10, b=10, l=10, r=10), barmode="group", font=dict(size=11, color="#1a1a2e"),
                       legend=dict(orientation="h", x=0, y=-0.2, yanchor="top"),
                       xaxis=dict(title="pods lead arrivals by (months)", dtick=1), yaxis=dict(title="correlation (r)", range=[-1.15, 1.15], zeroline=True))
-    return theme.style(fig)
+    return theme.style(fig, dots=False)
 
 
 def scatter_chart(p: pd.Series, arr: pd.Series, lag: int, res):
@@ -158,7 +158,7 @@ def scatter_chart(p: pd.Series, arr: pd.Series, lag: int, res):
                       margin=dict(t=10, b=10, l=10, r=10), font=dict(size=11, color="#1a1a2e"),
                       legend=dict(orientation="h", x=0, y=-0.2, yanchor="top"),
                       xaxis=dict(title=f"pod load {lag} months earlier (per tree)"), yaxis=dict(title="arrivals, kt", rangemode="tozero"))
-    return theme.style(fig)
+    return theme.style(fig, dots=False)
 
 
 # ---------------------------------------------------------------------------------------------

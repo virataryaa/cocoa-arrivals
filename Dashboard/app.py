@@ -86,10 +86,12 @@ with head_l:
     st.markdown(f"<div class='app-title'>{'Pods vs Arrivals' if section == 'Study' else section if section == 'Data Entry' else 'Cocoa ' + section}</div>", unsafe_allow_html=True)
 
 if section == "Arrivals":
-    with head_r, st.container(key="main"):
-        origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
-    with st.container(key="nav"):
+    origin = st.session_state.get("origin", ORIGINS[0])          # read before the widget so the page list matches it
+    nav_l, nav_r = st.columns([4, 3], vertical_alignment="center")
+    with nav_l, st.container(key="nav"):
         page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
+    with nav_r, st.container(key="main"):
+        origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
     if page == "Weekly Arrivals":
         season.render("IVC")
     elif page == "Weekly History":
@@ -103,12 +105,13 @@ elif section == "Pod Counts":
     import pod_view
     pod_view.render_overview()
 else:
-    with st.container(key="nav_entry"):
+    nav_l, nav_r = st.columns([4, 3], vertical_alignment="center")
+    with nav_l, st.container(key="nav_entry"):
         page = st.radio("Page", ENTRY_PAGES, horizontal=True, label_visibility="collapsed", key="page_entry")
     if page == "Weekly Ports":
         projection.render_week()
     elif page == "Forestero Monthly":
-        with head_r, st.container(key="main"):
+        with nav_r, st.container(key="main"):
             origin = st.radio("Origin", ["IVC", "Ghana"], horizontal=True, label_visibility="collapsed", key="entry_origin")
         monthly.render_edit(origin)
     else:

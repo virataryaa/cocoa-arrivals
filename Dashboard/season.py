@@ -75,14 +75,15 @@ def _rgba(hex_: str, a: float) -> str:
     return f"rgba({int(hex_[1:3], 16)},{int(hex_[3:5], 16)},{int(hex_[5:7], 16)},{a})"
 
 
-YEAR_COLOURS = ["#0a2463", "#e8590c", "#0f9d8a", "#8e44ad", "#d62f3a", "#c9a21f"]      # newest crop year first: navy, orange, teal, purple, red, gold
 SOURCES = ["Manual", "Eikon", "Forestero"]
-SOURCE_STYLE = {"Manual": ("solid", 1.0, 0.0), "Eikon": ("solid", 0.55, 0.45), "Forestero": ("dash", 0.5, 0.0)}   # (dash, width factor, fade toward white)
-
-
-def _fade(hex_: str, t: float) -> str:
-    r, g, b = (int(hex_[i:i + 2], 16) for i in (1, 3, 5))
-    return "#%02x%02x%02x" % tuple(round(c + (255 - c) * t) for c in (r, g, b))
+# one vibrant colour per (crop year, source), fixed so a series keeps its colour whatever else is selected; neighbours in the legend always differ
+VIBRANT = ["#1d4ed8", "#ff6b00", "#00b894",          # newest year: Manual, Eikon, Forestero
+           "#d6249f", "#00a8e8", "#7ed321",
+           "#8e24aa", "#ffb300", "#e53935",
+           "#00897b", "#f06292", "#5c6bc0",
+           "#c0ca33", "#ff7043", "#26c6da",
+           "#6d4c41", "#ab47bc", "#43a047"]
+SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("solid", 0.8), "Forestero": ("dash", 0.7)}      # (dash, width factor)
 
 
 def season_years() -> list:
@@ -100,8 +101,8 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         src, lab = name.split(" (")[0], name.split("(")[1].rstrip(")")
         if src not in sources or lab not in rank or col not in df or df[col].notna().sum() == 0:
             continue
-        dash_, wf, fade = SOURCE_STYLE[src]
-        colour = _fade(YEAR_COLOURS[season_years().index(lab)], fade)
+        dash_, wf = SOURCE_STYLE[src]
+        colour = VIBRANT[season_years().index(lab) * 3 + SOURCES.index(src)]
         width = (3 if rank[lab] == 0 else 2.2) * wf
         name = f"{src} {lab}"
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
@@ -205,7 +206,7 @@ def render(origin: str = "IVC"):
 
     pick = st.columns([2.2, 2.2, 4], vertical_alignment="center")
     years = pick[0].multiselect("Crop year", season_years(), default=season_years()[:2], key="season_years")
-    sources = pick[1].multiselect("Source", SOURCES, default=["Manual", "Forestero"], key="season_sources")
+    sources = pick[1].multiselect("Source", SOURCES, default=SOURCES, key="season_sources")
     with st.container():
         st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>", unsafe_allow_html=True)
         st.plotly_chart(chart(df, False, 320, years, sources), width="stretch")

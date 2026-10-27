@@ -128,6 +128,11 @@ CSS = """
   [data-testid="stMain"] .unica-table caption { text-align:center !important; font-family:'Plus Jakarta Sans','Inter',sans-serif; font-size:11px !important;
     font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#1e3a6e !important; padding:6px 0 !important; }
   [data-testid="stMain"] .mt tr:last-child td, [data-testid="stMain"] .unica-table tr:last-child td { border-bottom:0 !important; }
+  /* pod seasonal tables: shrink to content and centre instead of stretching across the page */
+  [data-testid="stMain"] .unica-table-wrap { width:fit-content !important; max-width:100%; margin:10px auto !important; }
+  [data-testid="stMain"] .unica-table { width:auto !important; }
+  [data-testid="stMain"] .unica-table td { min-width:34px; }
+  [data-testid="stMain"] .unica-table td.bar-cell { min-width:58px !important; padding:0 4px !important; }
 </style>
 """
 

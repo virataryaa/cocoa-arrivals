@@ -264,14 +264,8 @@ def render_edit(origin: str):
 
 
 def render(origin: str):
-    views = ["Overview"] + ([] if origin == COMBINED else ["Entry Table"])
-    top = st.columns([2.2, 1.4, 5], vertical_alignment="center")
-    with top[0], st.container(key="moview"):
-        view = st.radio("View", views, horizontal=True, label_visibility="collapsed", key=f"mo_view_{origin}")
-    if view == "Entry Table":
-        render_edit(origin)
-        return
-    with top[1]:
+    top = st.columns([1.4, 7], vertical_alignment="center")
+    with top[0]:
         last_n = {"Last 5": 5, "All": 0}[st.radio("Years", ["Last 5", "All"], horizontal=True, label_visibility="collapsed", key=f"mo_n_{origin}")]
     for typ in TYPES:                                    # 2 x 2: Stat on top, Tree underneath
         left, right = st.columns(2)

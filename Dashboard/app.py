@@ -70,38 +70,47 @@ import theme
 theme.apply()
 
 ORIGINS = ["IVC", "Ghana", monthly.COMBINED]
-PAGES = {"IVC": ["This week", "Weekly Arrivals", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"],
+PAGES = {"IVC": ["Weekly Arrivals", "Weekly History", "Forestero : Monthly"], "Ghana": ["Forestero : Monthly"],
          monthly.COMBINED: ["Forestero : Monthly"]}
+ENTRY_PAGES = ["Weekly Ports", "Forestero Monthly", "Pod Counts"]
+SECTIONS = ["Arrivals", "Pod Counts", "Study", "Data Entry"]
 
 with st.sidebar:
     st.markdown("<div class='sb-brand'>Cocoa Fundamentals</div><div class='sb-caption'>Ivory Coast &middot; Ghana</div><div class='sb-rule'></div>",
                 unsafe_allow_html=True)
     with st.container(key="section"):
-        section = st.radio("Section", ["Arrivals", "Pod Counts", "Study"], label_visibility="collapsed", key="section_pick")
+        section = st.radio("Section", SECTIONS, label_visibility="collapsed", key="section_pick")
 
 head_l, head_r = st.columns([4, 3], vertical_alignment="center")
 with head_l:
-    st.markdown(f"<div class='app-title'>{'Pods vs Arrivals' if section == 'Study' else 'Cocoa ' + section}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='app-title'>{'Pods vs Arrivals' if section == 'Study' else section if section == 'Data Entry' else 'Cocoa ' + section}</div>", unsafe_allow_html=True)
 
 if section == "Arrivals":
     with head_r, st.container(key="main"):
         origin = st.radio("Origin", ORIGINS, horizontal=True, label_visibility="collapsed", key="origin")
-    with st.container(key="nav_ivc" if origin == "IVC" else "nav"):
+    with st.container(key="nav"):
         page = st.radio("Page", PAGES[origin], horizontal=True, label_visibility="collapsed", key=f"page_{origin}")
-    if page == "This week":
-        projection.render_week()
-    elif page == "Weekly Arrivals":
+    if page == "Weekly Arrivals":
         season.render("IVC")
+    elif page == "Weekly History":
+        projection.render_history(projection.build())
     else:
         monthly.render(origin)
 elif section == "Study":
     import study
     study.render()
-else:
+elif section == "Pod Counts":
     import pod_view
-    with st.container(key="nav_pod"):
-        page = st.radio("Page", ["Overview", "Entry Table"], horizontal=True, label_visibility="collapsed", key="page_pod")
-    if page == "Entry Table":
-        pod_view.render_entry()
+    pod_view.render_overview()
+else:
+    with st.container(key="nav_entry"):
+        page = st.radio("Page", ENTRY_PAGES, horizontal=True, label_visibility="collapsed", key="page_entry")
+    if page == "Weekly Ports":
+        projection.render_week()
+    elif page == "Forestero Monthly":
+        with head_r, st.container(key="main"):
+            origin = st.radio("Origin", ["IVC", "Ghana"], horizontal=True, label_visibility="collapsed", key="entry_origin")
+        monthly.render_edit(origin)
     else:
-        pod_view.render_overview()
+        import pod_view
+        pod_view.render_entry()

@@ -82,7 +82,8 @@ VIBRANT = ["#0b0b0b", "#a4111c", "#00a67e",          # running year: Manual, Eik
            "#1d4ed8", "#ff6b00", "#d6249f",
            "#8e24aa", "#00a8e8", "#ffb300",
            "#00897b", "#7ed321", "#5c6bc0",
-           "#e53935", "#f06292", "#26c6da"]
+           "#e53935", "#f06292", "#26c6da",
+           "#6d4c41", "#ab47bc", "#43a047"]
 SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("solid", 0.8), "Forestero": ("solid", 0.7)}      # (dash, width factor)
 
 

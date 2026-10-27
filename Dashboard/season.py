@@ -99,7 +99,7 @@ def season_years() -> list:
 
 
 MAIN_LAST_WEEK = 26                                       # weeks 1-26 = main crop (Oct-Mar), 27-51 = mid crop (Apr-Sep)
-PROJ_COLOUR = "#3f78c8"
+PROJ_COLOUR = "#0b0b0b"                                 # same black as the running-year Manual line
 
 
 def project(df: pd.DataFrame, main: float, mid: float):

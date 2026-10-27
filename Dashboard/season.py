@@ -140,12 +140,17 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
 
 TABLE_CSS = """
 <style>
-.st-wrap { overflow: auto; max-height: 440px; border: 0; border-radius: 10px; background: #fff; display: inline-block; max-width: 100%; }
-.st-tab { border-collapse: separate; border-spacing: 0; font-size: 11px; }
-.st-tab th { position: sticky; top: 0; background: #0a2463; color: #fff; font-weight: 600; padding: 2px 8px; text-align: center; white-space: nowrap; }
-.st-tab td { padding: 1px 8px; line-height: 1.25; text-align: right; border-bottom: 1px solid #eef0f6; white-space: nowrap; font-variant-numeric: tabular-nums; color: #1a1a2e; }
-.st-tab td.wk { text-align: center; font-weight: 600; background: #f6f7fb; }
-.st-tab td.na { color: #b8bfd2; }
+.ice-wrap { display: flex; justify-content: center; overflow-x: auto; padding: 4px 2px 10px; }
+.ice-tab { border-collapse: separate; border-spacing: 0; background: #fff; border-radius: 14px; overflow: hidden; font-size: 11px;
+    box-shadow: 0 1px 2px rgba(10,36,99,.05), 0 10px 30px rgba(10,36,99,.09); font-variant-numeric: tabular-nums; }
+.ice-tab th { background: linear-gradient(180deg, #f7f9fd, #e9eff9); color: #1e3a6e; font-family: 'Plus Jakarta Sans','Inter',sans-serif; font-size: 10px;
+    font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 7px 12px; text-align: center; white-space: nowrap;
+    border-bottom: 1px solid rgba(43,74,138,.14); }
+.ice-tab td { padding: 2px 12px; text-align: center; border-bottom: 1px solid rgba(43,74,138,.06); white-space: nowrap; color: #1a1a2e; line-height: 1.3; }
+.ice-tab tr:last-child td { border-bottom: 0; }
+.ice-tab td.wk { font-weight: 700; color: #1e3a6e; background: #f6f8fd; }
+.ice-tab td.na { color: #c3cadb; }
+.ice-tab tbody tr:hover td { filter: brightness(0.97); }
 </style>
 """
 
@@ -168,7 +173,7 @@ def table_html(df: pd.DataFrame, cumulative: bool) -> str:
                 a = (v - s.min()) / (s.max() - s.min()) if s.max() > s.min() else 0
                 tds.append(f"<td style='background:rgba(31,138,156,{0.04 + 0.28 * a:.2f})'>{v:,.0f}</td>")
         rows.append("<tr>" + "".join(tds) + "</tr>")
-    return f"<div class='st-wrap'><table class='st-tab'>{head}{''.join(rows)}</table></div>"
+    return f"<div class='ice-wrap'><table class='ice-tab'><thead>{head}</thead><tbody>{''.join(rows)}</tbody></table></div>"
 
 
 def render(origin: str = "IVC"):
@@ -192,10 +197,10 @@ def render(origin: str = "IVC"):
     sources = pick[1].multiselect("Source", SOURCES, default=SOURCES, key="season_sources")
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>", unsafe_allow_html=True)
-        st.plotly_chart(chart(df, False, 430, years, sources), width="stretch")
+        st.plotly_chart(chart(df, False, 320, years, sources), width="stretch")
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
-        st.plotly_chart(chart(df, True, 430, years, sources), width="stretch")
+        st.plotly_chart(chart(df, True, 320, years, sources), width="stretch")
     with st.container():
         st.markdown(f"<div class='card-title'>Weekly arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
         st.markdown(TABLE_CSS + table_html(df, False), unsafe_allow_html=True)

@@ -95,10 +95,6 @@ CSS = """
   .stButton > button, .stDownloadButton > button { border-radius:999px; border:1px solid rgba(43,74,138,.18); background:linear-gradient(180deg,#ffffff,#eef2fa);
     color:#0a2463; font-weight:600; box-shadow:0 1px 2px rgba(10,36,99,.06); transition:box-shadow .18s, transform .18s; }
   .stButton > button:hover, .stDownloadButton > button:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(10,36,99,.14); border-color:rgba(43,74,138,.35); color:#0a2463; }
-  /* HTML tables: icy header, rounded frame */
-  .st-wrap { border:0 !important; box-shadow:none !important; border-radius:10px !important; }
-  .st-tab th { background:linear-gradient(180deg,#f7f9fd,#edf2fa) !important; color:#1e3a6e !important; font-family:'Plus Jakarta Sans','Inter',sans-serif;
-    font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 </style>
 """
 

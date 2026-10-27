@@ -95,30 +95,28 @@ def _cell(v, lo, hi):
     return f"<td style='background:rgba(31,138,156,{0.06 + 0.34 * a:.2f})'>{v:,.0f}</td>"
 
 
-def table_html(origin: str) -> str:
-    """Months down (Stat block, then Tree block, each with Total and YTD YoY), crop years across."""
+def table_html(origin: str, typ: str) -> str:
+    """One Forestero series (Stat or Tree): months down with Total and YTD YoY, crop years across."""
     years = years_of(origin)
-    head = "<tr><th>Type</th><th>Month</th>" + "".join(f"<th>{cy}</th>" for cy in years) + "</tr>"
+    head = "<tr><th>Month</th>" + "".join(f"<th>{cy}</th>" for cy in years) + "</tr>"
     rows = []
-    for typ in TYPES:
-        t = table(origin, typ).reindex(years)
-        for j, m in enumerate(CROP_MONTHS):
-            col = t[m]
-            lead = f"<td class='cy' rowspan=14>{typ}</td>" if j == 0 else ""
-            rows.append(f"<tr>{lead}<td class='cy'>{m}</td>" + "".join(_cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
-        tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
-                      for cy in years)
-        rows.append(f"<tr><td class='cy'>Total</td>{tot}</tr>")
-        yoy = []
-        for i, cy in enumerate(years):
-            done = t.loc[cy].notna()
-            g = np.nan
-            if i > 0 and done.any():
-                prev = t.iloc[i - 1][done]
-                if prev.notna().all() and prev.sum() > 0:
-                    g = t.loc[cy][done].sum() / prev.sum() - 1
-            yoy.append("<td class='na'>-</td>" if np.isnan(g) else f"<td class='{'up' if g >= 0 else 'dn'}'>{g:+.0%}</td>")
-        rows.append(f"<tr style='border-bottom:2px solid #0a2463'><td class='cy'>YTD YoY</td>{''.join(yoy)}</tr>")
+    t = table(origin, typ).reindex(years)
+    for m in CROP_MONTHS:
+        col = t[m]
+        rows.append(f"<tr><td class='cy'>{m}</td>" + "".join(_cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
+    tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
+                  for cy in years)
+    rows.append(f"<tr><td class='cy'>Total</td>{tot}</tr>")
+    yoy = []
+    for i, cy in enumerate(years):
+        done = t.loc[cy].notna()
+        g = np.nan
+        if i > 0 and done.any():
+            prev = t.iloc[i - 1][done]
+            if prev.notna().all() and prev.sum() > 0:
+                g = t.loc[cy][done].sum() / prev.sum() - 1
+        yoy.append("<td class='na'>-</td>" if np.isnan(g) else f"<td class='{'up' if g >= 0 else 'dn'}'>{g:+.0%}</td>")
+    rows.append(f"<tr style='border-bottom:2px solid #0a2463'><td class='cy'>YTD YoY</td>{''.join(yoy)}</tr>")
     return f"<div class='mt-wrap' style='display:inline-block;max-width:100%'><table class='mt' style='width:auto'>{head}{''.join(rows)}</table></div>"
 
 
@@ -277,4 +275,7 @@ def render(origin: str):
             st.plotly_chart(line_chart(origin, typ, True, last_n), width="stretch")
     with st.container(border=True):
         st.markdown(f"<div class='card-title'>Monthly arrivals {origin} - all crop years</div>", unsafe_allow_html=True)
-        st.markdown(CSS + table_html(origin), unsafe_allow_html=True)
+        for col, typ in zip(st.columns(2), TYPES):       # Stat and Tree side by side
+            with col:
+                st.markdown(f"<div class='card-desc' style='font-weight:700;color:#0a2463'>{typ}</div>", unsafe_allow_html=True)
+                st.markdown(CSS + table_html(origin, typ), unsafe_allow_html=True)

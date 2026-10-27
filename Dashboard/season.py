@@ -98,7 +98,47 @@ def season_years() -> list:
     return [label(y - i) for i in range(6)]                # newest first
 
 
-def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = None, sources: list | None = None, title: str = ""):
+MAIN_LAST_WEEK = 26                                       # weeks 1-26 = main crop (Oct-Mar), 27-51 = mid crop (Apr-Sep)
+PROJ_COLOUR = "#3f78c8"
+
+
+def project(df: pd.DataFrame, main: float, mid: float):
+    """Weekly projection for the weeks still to come in the running year. Each crop's target minus what the Manual series
+    already shows for it is spread over its remaining weeks in the average weekly shape of the last three Manual seasons.
+    Returns (weekly projection, last actual week, {crop: (received, remaining, weeks left)})."""
+    wk, act = df.week, df[f"etg_{tag(start_year())}"]
+    done = int(wk[act.notna()].max()) if act.notna().any() else 0
+    hist = [c for c in (f"etg_{tag(start_year() - i)}" for i in range(1, 4)) if c in df and df[c].notna().sum() > 20]
+    shape = df[hist].clip(lower=0).mean(axis=1).fillna(0) if hist else pd.Series(1.0, index=df.index)
+    out, info = pd.Series(float("nan"), index=df.index), {}
+    for crop, lo, hi, target in (("Main", 1, MAIN_LAST_WEEK, main), ("Mid", MAIN_LAST_WEEK + 1, int(wk.max()), mid)):
+        if not target:
+            continue
+        seg = (wk >= lo) & (wk <= hi)
+        got = float(act[seg & (wk <= done)].sum())
+        rest = seg & (wk > done)
+        left = max(target - got, 0.0)
+        info[crop] = (got, left, int(rest.sum()))
+        if rest.any():
+            w = shape[rest] if shape[rest].sum() > 0 else pd.Series(1.0, index=wk[rest].index)
+            out[rest] = left * w / w.sum()
+    return out, done, info
+
+
+def _add_projection(fig, df: pd.DataFrame, proj: pd.Series, done: int, cumulative: bool):
+    cur = df[f"etg_{tag(start_year())}"]
+    anchor = df.week == done                                # join the dashed line onto the last actual point
+    base = float(cur.fillna(0).sum()) if cumulative else (float(cur[anchor].iloc[0]) if anchor.any() else 0.0)
+    y = proj.cumsum() + base if cumulative else proj
+    keep = proj.notna() | anchor
+    y = y.where(~anchor, base)
+    fig.add_scatter(x=df.week[keep], y=y[keep], name=f"Projection {label(start_year())}", mode="lines",
+                    line=dict(color=PROJ_COLOUR, dash="dash", width=2.6, shape="spline", smoothing=0.45),
+                    fill="tozeroy", fillcolor=_rgba(PROJ_COLOUR, 0.06), hovertemplate="%{y:,.1f} (proj)")
+
+
+def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = None, sources: list | None = None, title: str = "",
+          proj: tuple | None = None):
     fig = go.Figure()
     cur = tag(start_year())
     years = years or season_years()[:2]
@@ -125,6 +165,8 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         m = df[f"etg_{cur}_proj"]
         fig.add_scatter(x=df.week[m], y=y[m], name=f"Manual {label(start_year())} projected", mode="markers",
                         marker=dict(symbol="circle-open", size=12, color="#0a2463", line=dict(width=2)), hovertemplate="%{y:,.1f} (projected)")
+    if proj is not None and proj[0].notna().any() and label(start_year()) in rank:
+        _add_projection(fig, df, proj[0], proj[1], cumulative)
     fig.update_layout(
         hovermode="x unified", height=height, margin=dict(t=40, b=8, l=8, r=12),
         hoverlabel=dict(bgcolor="rgba(255,255,255,0.97)", bordercolor="rgba(10,36,99,0.12)", font=dict(size=12, color="#1a1a2e")),
@@ -188,6 +230,30 @@ def table_html(df: pd.DataFrame, cumulative: bool) -> str:
     return f"<div class='ice-wrap'><table class='ice-tab'><thead>{head}</thead><tbody>{''.join(rows)}</tbody></table></div>"
 
 
+PROJ_CSS = """
+<style>
+.pj-strip { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 6px; }
+.pj-kpi { background: #fff; border-radius: 12px; padding: 6px 14px; box-shadow: 0 1px 2px rgba(10,36,99,.05), 0 6px 18px rgba(10,36,99,.07);
+    text-align: center; min-width: 120px; }
+.pj-kpi .k { font-family: 'Plus Jakarta Sans','Inter',sans-serif; font-size: 8.5px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: #6b7796; }
+.pj-kpi .v { font-size: 15px; font-weight: 700; color: #1e3a6e; font-variant-numeric: tabular-nums; }
+.pj-kpi .s { font-size: 10px; color: #8a94ad; }
+</style>
+"""
+
+
+def proj_strip(info: dict, main: float, mid: float) -> str:
+    cards = []
+    for crop, (got, left, n) in info.items():
+        cards.append(f"<div class='pj-kpi'><div class='k'>{crop} received</div><div class='v'>{got:,.0f}</div>"
+                     f"<div class='s'>{got / (main if crop == 'Main' else mid):.0%} of target</div></div>")
+        cards.append(f"<div class='pj-kpi'><div class='k'>{crop} to come</div><div class='v'>{left:,.0f}</div>"
+                     f"<div class='s'>{n} wks · {left / n if n else 0:,.1f} kt/wk</div></div>")
+    cards.append(f"<div class='pj-kpi'><div class='k'>Total crop</div><div class='v'>{main + mid:,.0f}</div><div class='s'>main + mid kt</div></div>")
+    return "<div class='pj-strip'>" + "".join(cards) + "</div>"
+
+
 def render(origin: str = "IVC"):
     weekly, monthly = load()
     typ = "Stat"                                           # Forestero series behind the dashed lines
@@ -206,11 +272,16 @@ def render(origin: str = "IVC"):
         if yy == y:
             df[f"etg_{tag(yy)}_proj"] = df.week.map(live["proj"]).fillna(False).astype(bool)
 
-    pick = st.columns([2.2, 2.2, 4], vertical_alignment="center")
+    pick = st.columns([2.2, 2.2, 1.3, 1.3], vertical_alignment="bottom")
     years = pick[0].multiselect("Crop year", season_years(), default=season_years()[:2], key="season_years")
     sources = pick[1].multiselect("Source", SOURCES, default=SOURCES, key="season_sources")
-    st.plotly_chart(chart(df, False, 330, years, sources, f"{origin} — Weekly arrivals kt"), width="stretch")
-    st.plotly_chart(chart(df, True, 330, years, sources, f"{origin} — Cumulative arrivals kt"), width="stretch")
+    main = pick[2].number_input(f"Main crop {label(y)} kt (Oct-Mar)", min_value=0.0, step=50.0, format="%.0f", key="proj_main")
+    mid = pick[3].number_input(f"Mid crop {label(y)} kt (Apr-Sep)", min_value=0.0, step=25.0, format="%.0f", key="proj_mid")
+    proj = project(df, main, mid) if (main or mid) else None
+    if proj:
+        st.markdown(PROJ_CSS + proj_strip(proj[2], main, mid), unsafe_allow_html=True)
+    st.plotly_chart(chart(df, False, 330, years, sources, f"{origin} — Weekly arrivals kt", proj), width="stretch")
+    st.plotly_chart(chart(df, True, 330, years, sources, f"{origin} — Cumulative arrivals kt", proj), width="stretch")
     with st.container():
         st.markdown(f"<div class='card-title'>Weekly arrivals {origin} - by week of crop year</div>", unsafe_allow_html=True)
         st.markdown(TABLE_CSS + table_html(df, False), unsafe_allow_html=True)

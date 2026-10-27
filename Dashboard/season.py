@@ -75,14 +75,9 @@ def _rgba(hex_: str, a: float) -> str:
     return f"rgba({int(hex_[1:3], 16)},{int(hex_[3:5], 16)},{int(hex_[5:7], 16)},{a})"
 
 
-SOURCE_COLOUR = {"Manual": "#0a2463", "Eikon": "#f08a00", "Forestero": "#12a38a"}
-SOURCES = list(SOURCE_COLOUR)
-
-
-def _fade(hex_: str, t: float) -> str:
-    """Mix a colour toward white: t=0 is the colour itself, t=1 is white."""
-    r, g, b = (int(hex_[i:i + 2], 16) for i in (1, 3, 5))
-    return "#%02x%02x%02x" % tuple(round(c + (255 - c) * t) for c in (r, g, b))
+YEAR_COLOURS = ["#0a2463", "#e8590c", "#0f9d8a", "#8e44ad", "#d62f3a", "#c9a21f"]      # newest crop year first: navy, orange, teal, purple, red, gold
+SOURCES = ["Manual", "Eikon", "Forestero"]
+SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("dot", 0.85), "Forestero": ("dash", 0.75)}    # (dash, width factor): the source reads from the line style
 
 
 def season_years() -> list:
@@ -100,15 +95,16 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
         src, lab = name.split(" (")[0], name.split("(")[1].rstrip(")")
         if src not in sources or lab not in rank or col not in df or df[col].notna().sum() == 0:
             continue
-        colour = _fade(SOURCE_COLOUR[src], min(0.7, rank[lab] * 0.3))
-        width = 3 if rank[lab] == 0 else 1.8
+        colour = YEAR_COLOURS[season_years().index(lab)]
+        dash_, wf = SOURCE_STYLE[src]
+        width = (3 if rank[lab] == 0 else 2.2) * wf
         name = f"{src} {lab}"
         y = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
         is_cur = col.endswith(cur)
         main = col == f"etg_{cur}"
         stepped = src == "Forestero" and not cumulative
         fig.add_scatter(x=df.week, y=y, name=name, mode="lines", connectgaps=False,
-                        line=dict(color=colour, dash="dash" if src == "Forestero" else "solid", width=width + (0.6 if main else 0), shape="hv" if stepped else "spline", smoothing=0.45),
+                        line=dict(color=colour, dash=dash_, width=width + (0.6 if main else 0), shape="hv" if stepped else "spline", smoothing=0.45),
                         fill="tozeroy" if main else None, fillcolor=_rgba(colour, 0.09) if main else None,
                         legendgroup=name, hovertemplate="%{y:,.1f}")
         if is_cur and src != "Forestero" and y.notna().any():              # this season: a dot + value on the latest week
@@ -205,10 +201,10 @@ def render(origin: str = "IVC"):
     pick = st.columns([2.2, 2.2, 4], vertical_alignment="center")
     years = pick[0].multiselect("Crop year", season_years(), default=season_years()[:2], key="season_years")
     sources = pick[1].multiselect("Source", SOURCES, default=SOURCES, key="season_sources")
-    with st.container(border=True):
+    with st.container():
         st.markdown(f"<div class='card-title'>Weekly arrivals {origin}</div>", unsafe_allow_html=True)
         st.plotly_chart(chart(df, False, 320, years, sources), width="stretch")
-    with st.container(border=True):
+    with st.container():
         st.markdown(f"<div class='card-title'>Cumulative arrivals {origin}</div>", unsafe_allow_html=True)
         st.plotly_chart(chart(df, True, 320, years, sources), width="stretch")
     with st.container():

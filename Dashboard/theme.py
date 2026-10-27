@@ -87,6 +87,7 @@ CSS = """
   [data-testid="stMain"] [data-testid="stWidgetLabel"] p { font-family:'Plus Jakarta Sans','Inter',sans-serif !important; font-size:12.5px !important;
     font-weight:600 !important; color:#1e3a6e !important; }
   /* no frames: charts, cards and tables sit straight on the page */
+  [data-testid="stVerticalBlockBorderWrapper"] { border:0 !important; box-shadow:none !important; background:transparent !important; }
   [data-testid="stMain"] [data-testid="stPlotlyChart"] { background:transparent; border:0; box-shadow:none; padding:0; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) { background:transparent !important; border:0 !important;
     box-shadow:none !important; border-radius:0; }

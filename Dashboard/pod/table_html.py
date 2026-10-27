@@ -2,8 +2,8 @@ import pandas as pd
 
 from pod.charts import GOOD, CRITICAL, GRID, INK, MUTED
 
-LIGHT_GREEN = (234, 250, 240)
-DARK_GREEN = (10, 110, 66)
+LIGHT_GREEN = (242, 247, 253)
+DARK_GREEN = (98, 148, 214)
 
 
 def _green_shade(t):

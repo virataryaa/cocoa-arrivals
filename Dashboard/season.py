@@ -183,7 +183,7 @@ def table_html(df: pd.DataFrame, cumulative: bool) -> str:
                 tds.append("<td class='na'>-</td>")
             else:
                 a = (v - s.min()) / (s.max() - s.min()) if s.max() > s.min() else 0
-                tds.append(f"<td style='background:rgba(31,138,156,{0.04 + 0.28 * a:.2f})'>{v:,.0f}</td>")
+                tds.append(f"<td style='background:rgba(63,120,200,{0.04 + 0.30 * a:.2f})'>{v:,.0f}</td>")
         rows.append("<tr>" + "".join(tds) + "</tr>")
     return f"<div class='ice-wrap'><table class='ice-tab'><thead>{head}</thead><tbody>{''.join(rows)}</tbody></table></div>"
 

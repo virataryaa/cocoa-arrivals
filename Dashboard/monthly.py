@@ -93,7 +93,7 @@ def _cell(v, lo, hi):
     if pd.isna(v):
         return "<td class='na'>-</td>"
     a = 0.0 if hi <= lo else (v - lo) / (hi - lo)
-    return f"<td style='background:rgba(31,138,156,{0.06 + 0.34 * a:.2f})'>{v:,.0f}</td>"
+    return f"<td style='background:rgba(63,120,200,{0.06 + 0.36 * a:.2f})'>{v:,.0f}</td>"
 
 
 def table_html(origin: str, typ: str) -> str:

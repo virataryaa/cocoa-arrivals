@@ -90,7 +90,11 @@ CSS = """
   [data-testid="stMain"] [data-testid="stPlotlyChart"] { background:transparent; border:0; box-shadow:none; padding:0; }
   [data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) { background:transparent !important; border:0 !important;
     box-shadow:none !important; border-radius:0; }
-  .card-title, .page-title, .app-title { font-family:'Plus Jakarta Sans','Inter',sans-serif; letter-spacing:-.005em; }
+  .app-title, .page-title { font-family:'Plus Jakarta Sans','Inter',sans-serif; letter-spacing:-.005em; }
+  /* visual and table headers: centred, small caps-style, spaced */
+  .card-title { font-family:'Plus Jakarta Sans','Inter',sans-serif; font-size:.82rem !important; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+    color:#1e3a6e; text-align:center; margin:6px 0 2px; }
+  .card-desc { text-align:center; }
   /* buttons */
   .stButton > button, .stDownloadButton > button { border-radius:999px; border:1px solid rgba(43,74,138,.18); background:linear-gradient(180deg,#ffffff,#eef2fa);
     color:#0a2463; font-weight:600; box-shadow:0 1px 2px rgba(10,36,99,.06); transition:box-shadow .18s, transform .18s; }
@@ -106,6 +110,9 @@ def apply():
 
 def style(fig):
     """COT chart base: white template, transparent bg, navy-grey grid, same font."""
+    if fig.layout.title.text:                                       # chart titles: centred caps like the card headers
+        fig.update_layout(title=dict(text=str(fig.layout.title.text).upper(), x=0.5, xanchor="center",
+                                     font=dict(family=FONT, size=12, color="#1e3a6e")))
     fig.update_layout(template="plotly_white", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(family=FONT, color="#1a1a2e", size=11))
     fig.update_xaxes(gridcolor=GRID, linecolor="rgba(0,0,0,0.08)", tickfont=dict(size=10, color=AXIS))

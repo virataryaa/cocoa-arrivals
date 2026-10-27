@@ -14,7 +14,7 @@ import streamlit as st
 import ghstore as gh
 import projection
 from pod.charts import cumulative_forecast, monthly_comparison
-from pod.data_loader import (ALL_COUNTRIES, ATOMIC_CLASSES, COUNTRIES, DATA_PATH, LTA_YEAR, MAIN_CROP_PERIODS, MID_CROP_PERIODS,
+from pod.data_loader import (ALL_COUNTRIES, MONTH_ORDER, ATOMIC_CLASSES, COUNTRIES, DATA_PATH, LTA_YEAR, MAIN_CROP_PERIODS, MID_CROP_PERIODS,
                              TOTAL, classes, flow_wide, load_raw, window_wide, year_columns, ytd_period_window)
 from pod.table_html import seasonal_table_html
 
@@ -104,14 +104,14 @@ def entry_months(raw: pd.DataFrame, country: str) -> list:
     return [nxt] + ym[::-1][:N_MONTHS - 1]
 
 
-def entry_grid(raw: pd.DataFrame, country: str):
-    months = entry_months(raw, country)
+def entry_grid(raw: pd.DataFrame, country: str, lta: bool = False):
+    months = [(LTA_YEAR, m) for m in MONTH_ORDER] if lta else entry_months(raw, country)      # LTA: the 12 months of the crop year, Apr-Mar
     sub = raw[raw.COUNTRY == country]
     rows = []
     for y, m in months:
         g = sub[(sub.Year == y) & (sub.Month == m)].groupby("CLASS")["NUMBER"].last()
         rows.append([g.get(c, np.nan) for c in ENTRY_CLASSES])
-    grid = pd.DataFrame(rows, columns=ENTRY_CLASSES, index=[f"{MON[m - 1]}-{str(y)[2:]}" for y, m in months]).astype(float)
+    grid = pd.DataFrame(rows, columns=ENTRY_CLASSES, index=[MON[m - 1] if lta else f"{MON[m - 1]}-{str(y)[2:]}" for y, m in months]).astype(float)
     return months, grid
 
 
@@ -205,19 +205,21 @@ def render_entry():
     cfg = {"_index": st.column_config.Column("Month", width=78)}
     cfg.update({c: st.column_config.TextColumn(SHORT[c], width=74) for c in ENTRY_CLASSES})
     changes, bad, notes = {}, [], []
+    lta = st.radio("Data", ["Survey months", "LTA"], horizontal=True, label_visibility="collapsed", key="pod_mode") == "LTA"
     with st.container(border=True):
-        st.markdown("<div class='card-title'>Enter pod counts</div><div class='card-desc'>Blank = not surveyed.</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-title'>{'Enter LTA (long-term average)' if lta else 'Enter pod counts'}</div>"
+                    f"<div class='card-desc'>{'Average pods per month, stored as year 1950.' if lta else 'Blank = not surveyed.'}</div>", unsafe_allow_html=True)
         for country in ENTRY_ORDER:
-            months, orig = entry_grid(raw, country)
+            months, orig = entry_grid(raw, country, lta)
             name = "Ivory Coast (IVC)" if country == "IVC" else "Ghana (GH)"
             st.markdown(f"<div style='background:#0a2463;color:#fff;font-weight:600;font-size:12px;text-align:center;padding:2px 0;"
                         f"border-radius:6px 6px 0 0;width:{78 + 74 * len(ENTRY_CLASSES) + 2}px;margin-top:6px'>{name}</div>",
                         unsafe_allow_html=True)
-            typed = st.data_editor(_as_text(orig), key=f"pod_ed_{country}_{ver}", width="content", row_height=26,
+            typed = st.data_editor(_as_text(orig), key=f"pod_ed_{country}_{int(lta)}_{ver}", width="content", row_height=26,
                                    height=26 * (len(orig) + 1) + 16, column_config=cfg)
             new = _to_number(typed, orig, bad)
             changes[country] = _changes(months, orig, new)
-            if changes[country]:
+            if changes[country] and not lta:
                 notes += [f"{country} {n}" for n in _notes(raw, country, months, new)]
         n_changed = sum(len(c) for c in changes.values())
         for n in bad:

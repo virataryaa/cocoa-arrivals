@@ -83,7 +83,7 @@ VIBRANT = ["#1d4ed8", "#ff6b00", "#00b894",          # newest year: Manual, Eiko
            "#00897b", "#f06292", "#5c6bc0",
            "#c0ca33", "#ff7043", "#26c6da",
            "#6d4c41", "#ab47bc", "#43a047"]
-SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("solid", 0.8), "Forestero": ("dash", 0.7)}      # (dash, width factor)
+SOURCE_STYLE = {"Manual": ("solid", 1.0), "Eikon": ("solid", 0.8), "Forestero": ("solid", 0.7)}      # (dash, width factor)
 
 
 def season_years() -> list:

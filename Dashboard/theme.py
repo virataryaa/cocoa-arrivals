@@ -133,6 +133,8 @@ CSS = """
   [data-testid="stMain"] .unica-table { width:auto !important; }
   [data-testid="stMain"] .unica-table td { min-width:34px; }
   [data-testid="stMain"] .unica-table td.bar-cell { min-width:58px !important; padding:0 4px !important; }
+  /* history table: the second header row was sticky at a fixed 25px and slid over the first data row once the header got tighter */
+  [data-testid="stMain"] .pj th, [data-testid="stMain"] .pj tr.h2 th { position:static !important; top:auto !important; }
 </style>
 """
 

@@ -14,7 +14,7 @@ import streamlit as st
 import ghstore as gh
 import projection
 from pod.charts import cumulative_forecast, monthly_comparison
-from pod.data_loader import (ALL_COUNTRIES, MONTH_ORDER, ATOMIC_CLASSES, COUNTRIES, DATA_PATH, LTA_YEAR, MAIN_CROP_PERIODS, MID_CROP_PERIODS,
+from pod.data_loader import (ALL_COUNTRIES, ATOMIC_CLASSES, COUNTRIES, DATA_PATH, LTA_YEAR, MAIN_CROP_PERIODS, MID_CROP_PERIODS,
                              TOTAL, classes, flow_wide, load_raw, window_wide, year_columns, ytd_period_window)
 from pod.table_html import seasonal_table_html
 
@@ -105,7 +105,7 @@ def entry_months(raw: pd.DataFrame, country: str) -> list:
 
 
 def entry_grid(raw: pd.DataFrame, country: str, lta: bool = False):
-    months = [(LTA_YEAR, m) for m in MONTH_ORDER] if lta else entry_months(raw, country)      # LTA: the 12 months of the crop year, Apr-Mar
+    months = [(LTA_YEAR, m) for m in range(1, 13)] if lta else entry_months(raw, country)      # LTA: Jan-Dec
     sub = raw[raw.COUNTRY == country]
     rows = []
     for y, m in months:
@@ -207,7 +207,7 @@ def render_entry():
     changes, bad, notes = {}, [], []
     lta = st.radio("Data", ["Survey months", "LTA"], horizontal=True, label_visibility="collapsed", key="pod_mode") == "LTA"
     with st.container(border=True):
-        st.markdown(f"<div class='card-title'>{'Enter LTA (long-term average)' if lta else 'Enter pod counts'}</div>"
+        st.markdown(f"<div class='card-title'>{'Enter LTA (long-term average, Jan-Dec)' if lta else 'Enter pod counts'}</div>"
                     f"<div class='card-desc'>{'Average pods per month, stored as year 1950.' if lta else 'Blank = not surveyed.'}</div>", unsafe_allow_html=True)
         for country in ENTRY_ORDER:
             months, orig = entry_grid(raw, country, lta)

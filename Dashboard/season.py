@@ -200,6 +200,8 @@ def render(origin: str = "IVC"):
             continue
         live = projection.crop_series(projection.build(), projection.load_eikon(), yy).set_index("week")
         df[f"etg_{tag(yy)}"] = df.week.map(live["etg"])
+        if yy != y:                                        # finished season with holes in the port entries: bridge them (week 1 takes week 2)
+            df[f"etg_{tag(yy)}"] = df[f"etg_{tag(yy)}"].interpolate(limit_area="inside").bfill(limit=1)
         df[f"eikon_{tag(yy)}"] = df.week.map(live["eikon"])
         if yy == y:
             df[f"etg_{tag(yy)}_proj"] = df.week.map(live["proj"]).fillna(False).astype(bool)

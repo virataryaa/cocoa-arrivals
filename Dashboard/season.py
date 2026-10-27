@@ -140,15 +140,17 @@ def chart(df: pd.DataFrame, cumulative: bool, height: int, years: list | None = 
 
 TABLE_CSS = """
 <style>
-.ice-wrap { display: flex; justify-content: center; overflow-x: auto; padding: 4px 2px 10px; }
-.ice-tab { border-collapse: separate; border-spacing: 0; background: #fff; border-radius: 14px; overflow: hidden; font-size: 11px;
-    box-shadow: 0 1px 2px rgba(10,36,99,.05), 0 10px 30px rgba(10,36,99,.09); font-variant-numeric: tabular-nums; }
-.ice-tab th { background: linear-gradient(180deg, #f7f9fd, #e9eff9); color: #1e3a6e; font-family: 'Plus Jakarta Sans','Inter',sans-serif; font-size: 10px;
-    font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 7px 12px; text-align: center; white-space: nowrap;
-    border-bottom: 1px solid rgba(43,74,138,.14); }
-.ice-tab td { padding: 2px 12px; text-align: center; border-bottom: 1px solid rgba(43,74,138,.06); white-space: nowrap; color: #1a1a2e; line-height: 1.3; }
+.ice-wrap { display: flex; justify-content: center; overflow-x: auto; padding: 2px 2px 8px; }
+.ice-tab { border-collapse: separate; border-spacing: 0; background: #fff; border-radius: 10px; overflow: hidden; font-size: 10px;
+    box-shadow: 0 1px 2px rgba(10,36,99,.05), 0 6px 20px rgba(10,36,99,.08); font-variant-numeric: tabular-nums; }
+.ice-tab th { background: linear-gradient(180deg, #f7f9fd, #e9eff9); color: #1e3a6e; font-family: 'Plus Jakarta Sans','Inter',sans-serif; font-size: 8.5px;
+    font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 5px; text-align: center; white-space: nowrap; line-height: 1.2; }
+.ice-tab tr.yr th { font-size: 9.5px; letter-spacing: .04em; padding: 3px 5px 2px; border-bottom: 1px solid rgba(43,74,138,.12);
+    border-left: 1px solid rgba(43,74,138,.10); }
+.ice-tab tr.src th { border-bottom: 1px solid rgba(43,74,138,.14); font-weight: 600; color: #5a6688; }
+.ice-tab td { padding: 0 5px; text-align: center; border-bottom: 1px solid rgba(43,74,138,.05); white-space: nowrap; color: #1a1a2e; line-height: 1.15; }
 .ice-tab tr:last-child td { border-bottom: 0; }
-.ice-tab td.wk { font-weight: 700; color: #1e3a6e; background: #f6f8fd; }
+.ice-tab td.wk { font-weight: 700; color: #1e3a6e; background: #f6f8fd; padding: 0 7px; }
 .ice-tab td.na { color: #c3cadb; }
 .ice-tab tbody tr:hover td { filter: brightness(0.97); }
 </style>
@@ -160,7 +162,15 @@ def table_html(df: pd.DataFrame, cumulative: bool) -> str:
     data = {}
     for label, col in cols:
         data[label] = df[col].cumsum(skipna=True).where(df[col].notna()) if cumulative else df[col]
-    head = "<tr><th>Week</th>" + "".join(f"<th>{label}</th>" for label, _ in cols) + "</tr>"
+    groups = []                                            # consecutive columns of one crop year share a top header cell
+    for label, _ in cols:
+        yr = label.split("(")[1].rstrip(")")
+        if groups and groups[-1][0] == yr:
+            groups[-1][1] += 1
+        else:
+            groups.append([yr, 1])
+    head = ("<tr class='yr'><th rowspan=2>Wk</th>" + "".join(f"<th colspan={n}>{yr}</th>" for yr, n in groups) + "</tr>"
+            "<tr class='src'>" + "".join(f"<th>{label.split(' (')[0]}</th>" for label, _ in cols) + "</tr>")
     rows = []
     for i, wk in enumerate(df.week):
         tds = [f"<td class='wk'>{wk}</td>"]

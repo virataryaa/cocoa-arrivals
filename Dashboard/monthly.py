@@ -107,14 +107,21 @@ def _diff(v, span):
 def table_html(origin: str, typ: str, cumulative: bool = False) -> str:
     """One Forestero series (Stat or Tree): months down with Total (monthly only) and YTD YoY, crop years across."""
     years = years_of(origin)
-    head = "<tr><th>Month</th>" + "".join(f"<th>{cy}</th>" for cy in years) + "</tr>"
+    head = "<tr><th>Month</th>" + "".join(f"<th>{cy}</th>" for cy in years) + ("<th>vs LY</th><th>vs 5Y</th>" if cumulative else "") + "</tr>"
     rows = []
     t = table(origin, typ).reindex(years)
     shown = t.cumsum(axis=1, skipna=True).where(t.notna()) if cumulative else t
+    if cumulative:                                       # latest crop year minus last year / minus the average of the 5 before it
+        cur = shown.iloc[-1]
+        diffs = [cur - shown.iloc[-2], cur - shown.iloc[-6:-1].mean()]
+        span = max((d.abs().max() for d in diffs if d.notna().any()), default=0) or 1
     for m in CROP_MONTHS:
         col = shown[m]
-        rows.append(f"<tr><td class='cy'>{m}</td>" + "".join((f"<td>{col[cy]:,.0f}</td>" if pd.notna(col[cy]) else "<td class='na'>-</td>") if cumulative
-                                                                    else _cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
+        cells = "".join((f"<td>{col[cy]:,.0f}</td>" if pd.notna(col[cy]) else "<td class='na'>-</td>") if cumulative
+                        else _cell(col[cy], col.min(), col.max()) for cy in years)
+        if cumulative:
+            cells += "".join(_diff(d[m], span) for d in diffs)
+        rows.append(f"<tr><td class='cy'>{m}</td>{cells}</tr>")
     if not cumulative:
         tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
                       for cy in years)

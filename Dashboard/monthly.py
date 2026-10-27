@@ -96,6 +96,14 @@ def _cell(v, lo, hi):
     return f"<td style='background:rgba(63,120,200,{0.06 + 0.36 * a:.2f})'>{v:,.0f}</td>"
 
 
+def _diff(v, span):
+    if pd.isna(v):
+        return "<td class='na'>-</td>"
+    a = 0.10 + 0.45 * min(abs(v) / span, 1)
+    rgb, fg = ("34,160,107", "#0d6b45") if v >= 0 else ("214,69,80", "#9b1c26")
+    return f"<td style='background:rgba({rgb},{a:.2f});color:{fg};font-weight:700'>{v:+,.0f}</td>"
+
+
 def table_html(origin: str, typ: str, cumulative: bool = False) -> str:
     """One Forestero series (Stat or Tree): months down with Total (monthly only) and YTD YoY, crop years across."""
     years = years_of(origin)
@@ -120,7 +128,7 @@ def table_html(origin: str, typ: str, cumulative: bool = False) -> str:
             if prev.notna().all() and prev.sum() > 0:
                 g = t.loc[cy][done].sum() / prev.sum() - 1
         yoy.append("<td class='na'>-</td>" if np.isnan(g) else f"<td class='{'up' if g >= 0 else 'dn'}'>{g:+.0%}</td>")
-    rows.append(f"<tr style='border-bottom:2px solid #0a2463'><td class='cy'>YTD YoY</td>{''.join(yoy)}</tr>")
+    rows.append(f"<tr style='border-bottom:2px solid #0a2463'><td class='cy'>YTD YoY</td>{''.join(yoy)}{"<td></td><td></td>" if cumulative else ""}</tr>")
     return f"<div class='mt-wrap' style='display:inline-block;max-width:100%'><table class='mt' style='width:auto'>{head}{''.join(rows)}</table></div>"
 
 

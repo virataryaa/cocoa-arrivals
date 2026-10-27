@@ -29,19 +29,26 @@ def label(y: int) -> str:
 
 
 def series_list() -> list:
-    """(label, column, colour, dash, width, shown) for the running crop year and the two before it; shown=False starts hidden."""
+    """(label, column, colour, dash, width, shown), newest crop year first (Manual, Eikon, Forestero within a year).
+    The running year and the one before are shown; older years start hidden (click the legend to bring them back)."""
     y = start_year()
-    c, p, q = tag(y), tag(y - 1), tag(y - 2)
-    return [
-        (f"Manual ({label(y)})", f"etg_{c}", "#0a2463", "solid", 3, True),
-        (f"Eikon ({label(y)})", f"eikon_{c}", "#f08a00", "solid", 2.2, True),
-        (f"Forestero ({label(y)})", f"fo_{c}", "#12a38a", "dash", 2.2, True),
-        (f"Manual ({label(y - 1)})", f"etg_{p}", "#8e44ad", "solid", 1.8, True),
-        (f"Eikon ({label(y - 1)})", f"eikon_{p}", "#d62f3a", "solid", 1.8, True),
-        (f"Forestero ({label(y - 1)})", f"fo_{p}", "#6c7a89", "dot", 2, True),
-        (f"Manual ({label(y - 2)})", f"etg_{q}", "#9aa5b8", "solid", 1.5, False),
-        (f"Eikon ({label(y - 2)})", f"eikon_{q}", "#8a5a12", "dot", 1.5, False),
+    spec = [  # (years back, manual colour, eikon colour, forestero colour, forestero dash, width, shown)
+        (0, "#0a2463", "#f08a00", "#12a38a", "dash", 3, True),
+        (1, "#8e44ad", "#d62f3a", "#6c7a89", "dot", 1.8, True),
+        (2, "#9aa5b8", "#8a5a12", "#c0a23a", "dot", 1.5, False),
+        (3, "#3949ab", None, "#8bc34a", "dot", 1.5, False),
+        (4, None, None, "#e91e63", "dot", 1.5, False),
+        (5, None, None, "#00acc1", "dot", 1.5, False),
     ]
+    out = []
+    for back, man, eik, fo, fdash, width, shown in spec:
+        t, lab = tag(y - back), label(y - back)
+        if man:
+            out.append((f"Manual ({lab})", f"etg_{t}", man, "solid", width, shown))
+        if eik:
+            out.append((f"Eikon ({lab})", f"eikon_{t}", eik, "solid", width - 0.8 if back == 0 else width, shown))
+        out.append((f"Forestero ({lab})", f"fo_{t}", fo, fdash, 2.2 if back == 0 else width, shown))
+    return out
 
 
 @st.cache_data(ttl=600)
@@ -148,9 +155,9 @@ def render(origin: str = "IVC"):
         view = st.radio("View", ["Charts", "Table"], horizontal=True, label_visibility="collapsed", key="season_view")
     df = weekly.copy()
     y = start_year()
-    for yy in (y - 1, y):
+    for yy in range(y - 5, y + 1):
         df[f"fo_{tag(yy)}"] = df.week.map(forestero_weekly(monthly, origin, typ, label(yy)))
-    for yy in (y - 1, y):                                  # the running year (and the one before, if weekly.csv lacks it) come from the entry data
+    for yy in range(y - 3, y + 1):                         # the running year, and older years weekly.csv lacks (23/24), come from the entry data
         if yy != y and f"etg_{tag(yy)}" in df:
             continue
         live = projection.crop_series(projection.build(), projection.load_eikon(), yy).set_index("week")

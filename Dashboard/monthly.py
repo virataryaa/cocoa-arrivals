@@ -96,18 +96,20 @@ def _cell(v, lo, hi):
     return f"<td style='background:rgba(63,120,200,{0.06 + 0.36 * a:.2f})'>{v:,.0f}</td>"
 
 
-def table_html(origin: str, typ: str) -> str:
-    """One Forestero series (Stat or Tree): months down with Total and YTD YoY, crop years across."""
+def table_html(origin: str, typ: str, cumulative: bool = False) -> str:
+    """One Forestero series (Stat or Tree): months down with Total (monthly only) and YTD YoY, crop years across."""
     years = years_of(origin)
     head = "<tr><th>Month</th>" + "".join(f"<th>{cy}</th>" for cy in years) + "</tr>"
     rows = []
     t = table(origin, typ).reindex(years)
+    shown = t.cumsum(axis=1, skipna=True).where(t.notna()) if cumulative else t
     for m in CROP_MONTHS:
-        col = t[m]
+        col = shown[m]
         rows.append(f"<tr><td class='cy'>{m}</td>" + "".join(_cell(col[cy], col.min(), col.max()) for cy in years) + "</tr>")
-    tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
-                  for cy in years)
-    rows.append(f"<tr><td class='cy'>Total</td>{tot}</tr>")
+    if not cumulative:
+        tot = "".join(f"<td class='tot'>{t.loc[cy].sum(min_count=1):,.0f}</td>" if t.loc[cy].notna().any() else "<td class='na'>-</td>"
+                      for cy in years)
+        rows.append(f"<tr><td class='cy'>Total</td>{tot}</tr>")
     yoy = []
     for i, cy in enumerate(years):
         done = t.loc[cy].notna()
@@ -283,4 +285,6 @@ def render(origin: str):
         for col, typ in zip(st.columns(2), TYPES):       # Stat and Tree side by side
             with col:
                 st.markdown(f"<div class='card-desc' style='font-weight:700;color:#0a2463'>{typ}</div>", unsafe_allow_html=True)
-                st.markdown(CSS + table_html(origin, typ), unsafe_allow_html=True)
+                pair = "".join(f"<div><div class='card-desc' style='text-align:center;font-size:10px;letter-spacing:.12em;text-transform:uppercase'>{lab}</div>"
+                               f"{table_html(origin, typ, cum)}</div>" for lab, cum in (("Monthly", False), ("Cumulative", True)))
+                st.markdown(CSS + f"<div style='display:flex;gap:14px;justify-content:center;flex-wrap:wrap'>{pair}</div>", unsafe_allow_html=True)

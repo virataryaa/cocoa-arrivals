@@ -25,10 +25,14 @@ def enabled() -> bool:
         return False
 
 
-@st.cache_resource
 def _session():
+    # keyed on the token so a re-pasted secret is picked up without a reboot
+    return _session_for(str(st.secrets["github_token"]).strip().strip('"').strip("'"))
+
+
+@st.cache_resource
+def _session_for(tok: str):
     s = requests.Session()
-    tok = str(st.secrets["github_token"]).strip().strip('"').strip("'")
     s.headers.update({"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json"})
     return s
 
